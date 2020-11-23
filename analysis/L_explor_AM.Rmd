@@ -1,0 +1,62 @@
+---
+title: "460 CW Grp 10 - Exploratory analysis for Lubrizol"
+author: Alex Meehan
+Date: Nov 2020
+output:
+  html_document:
+    df_print: paged
+---
+```{r,warning=FALSE,message=FALSE}
+library(dplyr)
+library(ggplot2)
+```
+
+# import the data
+```{r}
+data <- read.csv("Data.csv", stringsAsFactors=FALSE)
+data$LAB <- as.factor(data$LAB) # convert LAB to be a factor
+data[is.na(data)] <- 0 # replace NAs with zero
+```
+
+# distribution of target variable ("Response")
+```{r}
+hist(data$Response, breaks=20)
+abline(v=50,col="red")
+```
+
+# quick look at results by lab
+```{r}
+boxplot(Response~LAB, data=data)
+table(data$LAB)
+```
+
+# find highest correlation sub-groups & meta-groups
+```{r}
+corr_data <- data
+corr_data$X <- NULL # drop identifier column
+corr_data$LAB <- NULL # drop non-numeric LAB column
+corr_data <- corr_data[1:nrow(corr_data),477:ncol(corr_data)]
+# drop ingredients columns
+corr_data<- scale(corr_data) # standardise the variables (for aggregation in meta-groups)
+corr <- cor(corr_data, method="pearson") # calculates full corr matrix
+corr <- corr[nrow(corr),1:ncol(corr)] # selects the last row (Response)
+corr <- data.frame(colnames(corr_data), corr) #add back column names
+corr <- corr[1:(nrow(corr)-1), ] # remove last "Response" row (correlation of 1.0)
+corr <- corr[order(-abs(corr$corr)),]   # order correlation list from largest
+colnames(corr) <- c("sub_grp", "pearson_corr")
+library(stringr)
+corr$meta_grp <- str_extract(corr$sub_grp, "^(.*?)_") # create meta-groups
+corr_meta <- corr %>%
+  group_by(meta_grp) %>%
+  summarize(avg_corr = mean(pearson_corr))
+corr_meta <- corr_meta[order(-abs(corr_meta$avg_corr)),] # order correlation grp from largest
+```
+
+
+
+
+
+
+
+
+
