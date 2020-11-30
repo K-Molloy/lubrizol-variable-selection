@@ -2,7 +2,9 @@
 title: "pre-processing"
 author: "35680875 - E Magee"
 date: "26 November 2020"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -14,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse) #loading in packages
 
-raw_data = read.csv("Data.csv") #reading in data
+raw_data = read.csv("../data/Data.csv") #reading in data
 ```
 
 Looking at the data set the ingredients go up to 476 so assuming there are none missing, the first 477 columns can be omitted for the group data. The first column is an arbitrary number indicating the observation. There are 811 variable in total.
@@ -34,9 +36,9 @@ no_ingredients = raw_data[, 478:812] #slicing the data set to get just groups, l
 ```
 
 
-```{r}
+```{r, include=FALSE}
 
-#no_ingredients[,335] #used to check if the Pass variable was implemented correctly, commented out for the sake of the knitted html
+no_ingredients[,335] #used to check if the Pass variable was implemented correctly, commented out for the sake of the knitted html
 
 ```
 
@@ -60,7 +62,7 @@ Do we want to do PCA? There are lots of variables so this might be good for dime
 
 ```{r}
 
-write.csv(standardised_no_ingredients, "standardised_data_460.csv")
+write.csv(standardised_no_ingredients, "../data/standardised_data_460.csv")
 
 ```
 

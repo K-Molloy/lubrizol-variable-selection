@@ -1,10 +1,12 @@
 ---
 title: "460 CW Grp 10 - Exploratory analysis for Lubrizol"
-author: Alex Meehan
+author: "Alex Meehan"
 Date: Nov 2020
 output:
+  pdf_document: default
   html_document:
     df_print: paged
+  word_document: default
 ---
 ```{r,warning=FALSE,message=FALSE}
 library(dplyr)
@@ -13,7 +15,7 @@ library(ggplot2)
 
 # import the data
 ```{r}
-data <- read.csv("Data.csv", stringsAsFactors=FALSE)
+data <- read.csv("../data/Data.csv", stringsAsFactors=FALSE)
 data$LAB <- as.factor(data$LAB) # convert LAB to be a factor
 data[is.na(data)] <- 0 # replace NAs with zero
 ```
@@ -47,7 +49,7 @@ colnames(corr) <- c("sub_grp", "pearson_corr")
 library(stringr)
 corr$meta_grp <- str_extract(corr$sub_grp, "^(.*?)_") # create meta-groups
 corr_meta <- corr %>%
-  group_by(meta_grp) %>%
+  #group_by(meta_grp) %>%
   summarize(avg_corr = mean(pearson_corr))
 corr_meta <- corr_meta[order(-abs(corr_meta$avg_corr)),] # order correlation grp from largest
 ```
