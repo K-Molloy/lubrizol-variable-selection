@@ -8,7 +8,7 @@ output:
 ```{r warning=FALSE, message=FALSE}
 library(tidyverse) #loading in packages
 library(glmnet)
-std_data = read.csv("standardised_data_460.csv")
+std_data = read.csv("../data/standardised_data_460.csv")
 ```
 # Ridge Regression
 
