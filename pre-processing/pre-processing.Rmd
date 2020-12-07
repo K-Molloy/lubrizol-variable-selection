@@ -1,10 +1,10 @@
 ---
 title: "pre-processing"
-author: "35680875 - E Magee"
-date: "26 November 2020"
+author: "E Magee"
+date: "30 November 2020"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -38,7 +38,8 @@ no_ingredients = raw_data[, 478:812] #slicing the data set to get just groups, l
 
 ```{r, include=FALSE}
 
-no_ingredients[,335] #used to check if the Pass variable was implemented correctly, commented out for the sake of the knitted html
+#no_ingredients[,335] 
+#used to check if the Pass variable was implemented correctly, commented out for the sake of the knitted html
 
 ```
 
@@ -107,3 +108,10 @@ ggplot(normalised_no_ingredients, aes(x= Group1_11, y = Response))+
 ```
 
 Can see from this plot that the distribution doesn't change at all but the scale on x has changed. Not sure which one is more appropriate.
+
+
+Writing the normalised data to a csv. Both normalised and standardised will be available for use later.
+```{r}
+write.csv(normalised_no_ingredients, "../data/normalised_data_460.csv")
+```
+

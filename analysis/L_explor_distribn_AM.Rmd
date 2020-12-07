@@ -1,0 +1,80 @@
+---
+title: "460 CW Grp 10 - Exploratory analysis for Lubrizol - histograms"
+author: Alex Meehan
+Date: Nov 2020
+output:
+  html_document:
+    df_print: paged
+---
+```{r,warning=FALSE,message=FALSE}
+library(dplyr)
+library(ggplot2)
+```
+
+# import the data
+```{r}
+data <- read.csv("Data.csv", stringsAsFactors=FALSE)
+data$LAB <- as.factor(data$LAB) # convert LAB to be a factor
+data[is.na(data)] <- 0 # replace NAs with zero
+data <- data[, -c(2:477)] # delete ingredients columns
+```
+
+# histogram for each measure (using shiny app)
+Shiny app to toggle through distributions for each attribute.
+Shows it looks like they're a mix of normal distribution + exponential distribution,
+With LOTS of zeros (70% of Grp1-10 & 16% of Grp13)
+```{r}
+data_attrib <- colnames(data)
+  
+library(shiny)
+
+ui <- fluidPage(
+  titlePanel(title = h4("Interactive histogram for each attribute", align="center")),
+  sidebarPanel(id = "tPanel",style = "overflow-y:scroll; max-height: 90vh",
+    radioButtons("attrib", "Select attribute", choices = data_attrib)),
+  mainPanel(plotOutput("bar",height = 500)))
+
+server <- function(input,output){
+  reactive_data = reactive({
+    selected_attrib = input$attrib
+    return(data[,selected_attrib])})
+
+  output$bar <- renderPlot({
+    our_data <- reactive_data()
+    hist(our_data, breaks=10, xlab=input$attrib, title="")
+  })
+}
+shinyApp(ui=ui, server=server)
+```
+
+# Play with scatters to see relationships (using shiny app)
+```{r}
+library(shiny)
+
+ui <- fluidPage(
+  titlePanel(title = h4("Interactive scatter chart for relationships between attributes", align="center")),
+  sidebarPanel(
+    selectInput("attribX", "Select x attribute", choices = data_attrib),
+    selectInput("attribY", "Select y attribute", choices = data_attrib)),
+  mainPanel(plotOutput("bar",height = 500)))
+
+server <- function(input,output){
+  reactive_dataX = reactive({
+    selected_attribX = input$attribX
+    return(data[,selected_attribX])})
+  reactive_dataY = reactive({
+    selected_attribY = input$attribY
+    return(data[,selected_attribY])})
+
+  output$bar <- renderPlot({
+    our_dataX <- reactive_dataX()
+    our_dataY <- reactive_dataY()
+    plot(our_dataX, our_dataY, xlab="", ylab="", title="")
+  })
+}
+shinyApp(ui=ui, server=server)
+# or just use Tableau!
+```
+
+
+
