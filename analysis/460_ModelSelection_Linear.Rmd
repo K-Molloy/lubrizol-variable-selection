@@ -1,0 +1,235 @@
+---
+title: "Linear model"
+author: "Geyi Liu"
+date: "2020/12/19"
+output: html_document
+---
+This time, the previous linear model is further explored 
+```{r}
+library(stringr)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(car)
+library(tidyverse)
+data <- read.csv("Data.csv", stringsAsFactors=FALSE)
+data$LAB <- as.factor(data$LAB) # convert LAB to be a factor
+data[is.na(data)] <- 0 # replace NAs with zero
+```
+
+```{r}
+data_model <- data
+data_model$X <- NULL # drop identifier column
+data_model$LAB <- NULL # drop non-numeric LAB column
+data_model <- data_model[1:nrow(data_model),477:ncol(data_model)]
+```
+
+A new method is used to eliminate the zero majority of columns by counting the proportion of 0 in each column
+```{r}
+a=ncol(data_model) # number of columns
+b=nrow(data_model)*0.8 # 80% number of rows
+c=c()
+# Delete columns with more than 80% zeros
+for(i in 1:a){
+  # print(sum(data_model[,i]==0)) # Number of 0 per column
+  if( sum(data_model[,i]==0)>=b ){
+    c=append(c,i)
+  }
+  }
+print(c) # Columns to be deleted
+Data_remove=data_model[,-c]
+```
+
+```{r,include=FALSE}
+# A linear regression model of the relationship between remain group variables and Response was established
+model <- lm(Response~.,data = Data_remove)
+summary(model)
+```
+
+```{r}
+# idea from Kieran, Extract p values
+pvals = coef(summary(model))[,4]
+# print(pvals)
+# Get group names where p < 0.025
+high_sig = names(pvals)[pvals < 0.05]
+print(high_sig)
+```
+
+```{r,include=FALSE}
+model_2 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group11_4+Group11_6+Group9_23+Group9_24+
+                Group9_25+Group9_26+Group9_53+Group9_54+Group13_4+Group13_5+
+                Group13_6+Group13_9+Group13_17+Group13_20+Group13_21+
+                Group13_24+Group13_34+Group13_35+Group13_36+Group13_45+
+                Group13_46+Group13_47+Group13_48+Group13_52+Group13_62+
+                Group13_63,data = Data_remove)
+
+
+summary(model_2)
+```
+
+```{r}
+# Group9_53,Group13_4,Group13_17,Group13_21,Group13_24,Group13_45,
+# Group13_48,Group13_52 are removed by step() function
+step(model_2,test='F')
+```
+
+```{r}
+model_3 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group11_4+Group11_6+Group9_23+Group9_24+
+                Group9_25+Group9_26+Group9_54+Group13_5+Group13_6+
+                Group13_9+Group13_20+Group13_34+Group13_35+Group13_36+
+                Group13_46+Group13_47+Group13_62+Group13_63,data = Data_remove)
+
+summary(model_3)
+par(mfrow=c(2,2))
+plot(model_3)
+```
+
+VIF measure the severity of multicollinearity in multiple linear regression model.If the variance expansion factor is more than 10, the regression model has serious multicollinearity. We can find that the multiple linear model after stepwise regression has strong collinearity
+```{r}
+# model_3 has high collinearity
+vif(model_3)
+# The variables after stepwise regression construct a new data set
+Data_select <- select(Data_remove,Group1_6,Group1_11,Group1_20,Group2_4,
+                      Group2_14,Group3_11,Group11_4,Group11_6,Group9_23,
+                      Group9_24,Group9_25,Group9_26,Group9_54,Group13_5,
+                    Group13_6,Group13_9,Group13_20,Group13_34,Group13_35,
+                    Group13_36,Group13_46,Group13_47,Group13_62,Group13_63,
+                    Response)
+```
+Show the correlation between the same group of variables in the remaining variables
+```{r}
+library(corrplot)
+# Correlation coefficient of Group_1 and Group2 variables
+cor_Group1 <- data.matrix(select(Data_select, c('Group1_6','Group1_11','Group1_20','Group2_4','Group2_14')))
+corrplot(cor(cor_Group1),method = "number")
+# Correlation coefficient of Group_9 variables
+cor_Group9 <- data.matrix(select(Data_select, c('Group9_23','Group9_24','Group9_25','Group9_26','Group9_54')))
+corrplot(cor(cor_Group9),method = "number")
+# Correlation coefficient of Group_11 variables
+cor_Group11 <- data.matrix(select(Data_select, c('Group11_4','Group11_6')))
+corrplot(cor(cor_Group11),method = "number")
+# Correlation coefficient of Group_13 variables
+cor_Group13 <- data.matrix(select(Data_select, c('Group13_5','Group13_6','Group13_9','Group13_20','Group13_34','Group13_35',
+  'Group13_36','Group13_46','Group13_47','Group13_62','Group13_63',)))
+corrplot(cor(cor_Group13),tl.cex = 0.8)
+```
+
+Some variables in model_3 fail to pass the significance test. We will continue to process them with drop1()
+```{r}
+drop1(model_3,test = 'F')
+# Remove Group13_46
+model_4 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group11_4+Group11_6+Group9_23+Group9_24+
+                Group9_25+Group9_26+Group9_54+Group13_5+Group13_6+
+                Group13_9+Group13_20+Group13_34+Group13_35+Group13_36+
+                Group13_47+Group13_62+Group13_63,data = Data_remove)
+drop1(model_4,test = 'F')
+# Remove Group13_36
+```
+
+```{r}
+model_5 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group11_4+Group11_6+Group9_23+Group9_24+
+                Group9_25+Group9_26+Group9_54+Group13_5+Group13_6+
+                Group13_9+Group13_20+Group13_34+Group13_35+
+                Group13_47+Group13_62+Group13_63,data = Data_remove)
+summary(model_5)
+# All of the variables in model 5 passed the significance test
+vif(model_5)
+
+```
+
+```{r}
+plot(model_5)
+```
+
+Because the model has a serious collinearity problem, we will try to delete several collinear variables. Here I try to use PCA to solve the problem of multicollinearity, but the result is not very good, the linear model composed of principal components can not fit the data well (R-squared is aroud 0.47).
+
+So I try to delete some collinear variables manually. The criterion to judge whether the model has collinearity is whether the value of VIF is greater than 10
+
+The correlation coefficient between Group9_2x variables reached 1, so they were treated first
+```{r}
+# We found that when we tried to remove at least one of these variables,
+# Other variables will no longer be statistically significant in the model
+
+# After all Group9_2x variables were removed, the R-squared value of the model  decreased by 0.01. 
+model_6 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group11_4+Group11_6+Group9_54+Group13_5+Group13_6+
+                Group13_9+Group13_20+Group13_34+Group13_35+
+                Group13_47+Group13_62+Group13_63,data = Data_remove)
+summary(model_6)
+vif(model_6)
+```
+
+
+The correlation coefficient between Group11_x variables also reached 1.
+```{r}
+# According to their p value, remove Group11_4
+model_6 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group11_6+Group9_54+Group13_5+Group13_6+
+                Group13_9+Group13_20+Group13_34+Group13_35+
+                Group13_47+Group13_62+Group13_63,data = Data_remove)
+# the R-squared value of the modeldecreased by 0.006. 
+summary(model_6)
+vif(model_6)
+```
+
+Finally, we deal with the variables of Group13
+
+Final linear model
+```{r}
+# Group13_20,Group13_34,Group13_47,Group13_62,Group13_63 are our main concern
+# Remove Group13_63,Group13_20,Group13_34,Group13_47(Sequential deletions, The specific process is not shown here, Delete according to the value of VIF)
+# The reason why Group11_6 is removed is that after removing the above variables, Group11_6 is no longer statistically significant in this model
+model_7 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group9_54+Group13_5+Group13_6+
+                Group13_9+Group13_35+Group13_62,data = Data_remove)
+# the R-squared value of the modeldecreased by 0.006. 
+summary(model_7)
+vif(model_7)
+plot(model_7)
+# After removing the above variables, Group11_6 became not statistically significant, so it was also removed
+```
+
+```{r}
+# Remove Group13_62,Group13_20,Group13_34
+model_8 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group9_54+Group13_5+Group13_6+
+                Group13_9+Group13_35+Group13_47+Group13_63,data = Data_remove)
+summary(model_8)
+# All of the variables in model 5 passed the significance test
+vif(model_8)
+# R-square value comparison: model_3:0.6219,model_8:0.6147
+# model_8 has no collinearity problem
+```
+Both model 7 and model 8 solve the problem of collinearity, but in general, model 7 is better.
+
+The following part mainly includes some regression diagnosis methods of the model
+
+Linearity:
+If the dependent variable is linearly correlated with the independent variable, there is no systematic correlation between the residual value and the predicted (fitted) value.
+```{r}
+library(car)
+crPlots(model_7,layout=c(2,2),)
+# From the figure, the linear model is suitable for this data set
+# But the relationship between independent variable and dependent variable in the Group9_54 is not linear, so we can try to transform it.
+```
+
+
+Homoscedasticity
+
+ncvTest: Computes a score test of the hypothesis of constant error variance against the alternative that the error variance changes with the level of the response (fitted values), or with a linear combination of predictors.
+
+Null hypothesis: the error variance is constant
+
+Alternative hypothesis: error variance varies with the level of fitting value
+```{r}
+ncvTest(model_7)
+# We can also see this conclusion through the pictures drawn by 
+# spreadLevelPlot() function
+# If the null hypothesis is violated, we will see a non horizontal curve
+spreadLevelPlot(model_7)
+```
+
