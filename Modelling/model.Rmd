@@ -5,24 +5,57 @@ output:
   html_document: default
 ---
 
-```{r warning=FALSE, message=FALSE}
-library(tidyverse) #loading in packages
+
+```{r}
+library(stringr)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(car)
+library(tidyverse)
 library(glmnet)
-std_data = read.csv("../data/standardised_data_460.csv")
+data <- read.csv("Data.csv", stringsAsFactors=FALSE)
+data$LAB <- as.factor(data$LAB) # convert LAB to be a factor
+data[is.na(data)] <- 0 # replace NAs with zero
 ```
+
+```{r}
+data_model <- data
+data_model$X <- NULL # drop identifier column
+data_model$LAB <- NULL # drop non-numeric LAB column
+data_model <- data_model[1:nrow(data_model),477:ncol(data_model)]
+```
+
+A new method is used to eliminate the zero majority of columns by counting the proportion of 0 in each column
+```{r}
+a=ncol(data_model) # number of columns
+b=nrow(data_model)*0.8 # 80% number of rows
+c=c()
+# Delete columns with more than 80% zeros
+for(i in 1:a){
+  # print(sum(data_model[,i]==0)) # Number of 0 per column
+  if( sum(data_model[,i]==0)>=b ){
+    c=append(c,i)
+  }
+  }
+print(c) # Columns to be deleted
+Data_remove=data_model[,-c]
+```
+
+
 # Ridge Regression
 
 Making std_data_predictors store all attributes that could influence response.
 
 ```{r}
-std_data_predictors = data.matrix(select(std_data, -c("Response")))
+std_data_predictors = data.matrix(select(Data_remove, -c(Response)))
 ```
 
 Finding the lambda value that creates the lowest mean squared error using k fold cross validation.
 
 ```{r}
 kfolds_cv_model <- 
-  cv.glmnet(std_data_predictors, std_data$Response, alpha = 0)
+  cv.glmnet(std_data_predictors, Data_remove$Response, alpha = 0)
 
 plot(kfolds_cv_model)
 
@@ -32,7 +65,7 @@ bestLambdaVal = kfolds_cv_model$lambda.min
 Using the best lambda value found, we create a ridge regression model utilising all predictor variables.
 
 ```{r}
-finalModel <- glmnet(std_data_predictors, std_data$Response, alpha = 0, lambda = bestLambdaVal)
+finalModel <- glmnet(std_data_predictors, Data_remove$Response, alpha = 0, lambda = bestLambdaVal)
 ```
 
 Predict the response variable using the model for each set of attribute values, then calculate the R^2 value to see the percentage of the variance which is explained by the model.
@@ -40,8 +73,8 @@ Predict the response variable using the model for each set of attribute values, 
 ```{r}
 predictedResponse <- predict(finalModel, s = bestLambdaVal, newx = std_data_predictors)
 
-sse <- sum((predictedResponse - std_data$Response)^2)
-sst <- sum((std_data$Response - mean(std_data$Response))^2)
+sse <- sum((predictedResponse - Data_remove$Response)^2)
+sst <- sum((Data_remove$Response - mean(Data_remove$Response))^2)
 
 
 rsq <- 1 - sse/sst
@@ -55,14 +88,14 @@ rsq
 Making std_data_predictors store all attributes that could influence response.
 
 ```{r}
-std_data_predictors = data.matrix(select(std_data, -c("Response")))
+std_data_predictors = data.matrix(select(Data_remove, -c("Response")))
 ```
 
 Finding the lambda value that creates the lowest mean squared error using k fold cross validation.
 
 ```{r}
 kfolds_cv_model <- 
-  cv.glmnet(std_data_predictors, std_data$Response, alpha = 1)
+  cv.glmnet(std_data_predictors, Data_remove$Response, alpha = 1)
 
 plot(kfolds_cv_model)
 
@@ -72,7 +105,7 @@ bestLambdaVal = kfolds_cv_model$lambda.min
 Using the best lambda value found, we create a lasso regression model utilising all predictor variables.
 
 ```{r}
-finalModel <- glmnet(std_data_predictors, std_data$Response, alpha = 1, lambda = bestLambdaVal)
+finalModel <- glmnet(std_data_predictors, Data_remove$Response, alpha = 1, lambda = bestLambdaVal)
 ```
 
 Predict the response variable using the model for each set of attribute values, then calculate the R^2 value to see the percentage of the variance which is explained by the model.
@@ -80,8 +113,8 @@ Predict the response variable using the model for each set of attribute values, 
 ```{r}
 predictedResponse <- predict(finalModel, s = bestLambdaVal, newx = std_data_predictors)
 
-sse <- sum((predictedResponse - std_data$Response)^2)
-sst <- sum((std_data$Response - mean(std_data$Response))^2)
+sse <- sum((predictedResponse - Data_remove$Response)^2)
+sst <- sum((Data_remove$Response - mean(Data_remove$Response))^2)
 
 
 rsq <- 1 - sse/sst
