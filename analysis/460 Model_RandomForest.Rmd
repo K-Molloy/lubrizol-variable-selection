@@ -41,8 +41,8 @@ for(i in 1:a){
   }
   }
 print(c) # Columns to be deleted
-Data_remove<-data_model[,-c]
-Data_remove$Pass = as.numeric(Data_remove$Response >= 50)
+Data_remove <- data_model[,-c]
+Data_remove$Pass <- as.numeric(Data_remove$Response >= 50)
 Data_remove$Pass <- as.factor(Data_remove$Pass)
 # Replace Response with Pass
 Data_remove <- subset(Data_remove, select = -c(Response))
