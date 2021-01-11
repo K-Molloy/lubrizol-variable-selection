@@ -1,0 +1,144 @@
+---
+title: "460 Model_RandomForest"
+author: "Geyi Liu"
+date: "2021/1/10"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+Introduction:
+https://corporatefinanceinstitute.com/resources/knowledge/other/random-forest/
+https://pubs.acs.org/doi/10.1021/ci034160g
+
+
+The essence of random forest algorithm is classifier ensemble algorithm based on decision tree. Compared with neural network, random forest reduces the amount of computation and improves the prediction accuracy. Moreover, the algorithm is insensitive to collinearity and robust to missing data and unbalanced data, which can be well adapted to thousands of explanatory variable data sets.
+
+
+```{r}
+library(pROC) # Draw ROC curve
+library(randomForest)
+library(stringr)
+library(dplyr)
+data <- read.csv("Data.csv", stringsAsFactors=FALSE)
+data$LAB <- as.factor(data$LAB) # convert LAB to be a factor
+data[is.na(data)] <- 0 # replace NAs with zero
+data_model <- data
+data_model$X <- NULL # drop identifier column
+data_model$LAB <- NULL # drop non-numeric LAB column
+data_model <- data_model[1:nrow(data_model),477:ncol(data_model)]
+```
+
+```{r}
+a=ncol(data_model) # number of columns
+b=nrow(data_model)*0.8 # 80% number of rows
+c=c()
+# Delete columns with more than 80% zeros
+for(i in 1:a){
+  # print(sum(data_model[,i]==0)) # Number of 0 per column
+  if( sum(data_model[,i]==0)>=b ){
+    c=append(c,i)
+  }
+  }
+print(c) # Columns to be deleted
+Data_remove=data_model[,-c]
+Data_remove$Pass = as.numeric(Data_remove$Response >= 50)
+Data_remove$Pass <- as.factor(Data_remove$Pass)
+# Replace Response with Pass
+Data_remove <- subset(Data_remove, select = -c(Response))
+```
+
+
+```{r}
+set.seed(100)
+# Divide the data set  into training set and test set, the ratio is 7:3
+train_sub = sample(nrow(Data_remove),7/10*nrow(Data_remove))
+train_data = Data_remove[train_sub,]
+test_data = Data_remove[-train_sub,]
+```
+
+
+# Some important parameters of randomForest()
+
+ntree: the number of trees in the forest. The default is 500
+mtry: number of features used per tree
+Importance: whether to calculate theimportance of variables. The default value is false
+Proximity: whether to calculate the similarity between observations
+
+```{r}
+# There are many variables, so the operation time will be long
+set.seed(100)
+rf <- randomForest(Pass ~ ., data=train_data,importance=TRUE, proximity=TRUE,type=classification)
+print(rf)
+```
+
+
+
+```{r}
+print(rf)
+TP<-rf$confusion[4]
+TN<-rf$confusion[1]
+FN<-rf$confusion[2]
+FP<-rf$confusion[3]
+print(FP)
+# Recall
+Rec <-TP/(TP+FN)
+# Precision
+Pre<-TP/(TP+FP)
+# Accuracy
+Acc<-(TP+TN)/(TP+FN+TN+FP)
+# F1 score
+F1 <- 2*Acc*Rec/(Acc+Rec)
+```
+
+View the importance of variables:
+Mean decrease accuracy: the decrease of accuracy after replacing this variable.
+Mean decrease Gini: the decrease of Gini coefficient after variable replacement. The larger the value, the more important the variable is.
+
+
+```{r}
+# importance()
+imp= as.data.frame(rf$importance)
+# Check which variables are important
+best <- subset(imp,imp$MeanDecreaseGini>10)
+```
+Group1_11,Group1_9,Group1_2 are the most important factors that affect whether the product passes the test.
+
+Group1 and Group2  are the three most influential groups.
+
+
+```{r}
+# Output the top 15 important variables
+varImpPlot(rf, main = "variable importance",n.var=15)
+```
+
+```{r}
+# Predicting the test sets
+pre_ran <- predict(rf,newdata=test_data)
+# Integrating real and predicted values
+obs_p_ran = data.frame(prob=pre_ran,obs=test_data$Pass)
+# Output confusion matrix
+table(test_data$Pass,pre_ran,dnn=c("Real","Predict"))
+# Draw ROC curve
+ran_roc <- roc(test_data$Pass,as.numeric(pre_ran))
+
+plot(ran_roc, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),grid.col=c("green", "red"), max.auc.polygon=TRUE,auc.polygon.col="skyblue", print.thres=TRUE,main='ROC curve of random forest model')
+```
+
+
+```{r}
+pred_out_1<-predict(object=rf,newdata=test_data,type="prob")
+table <- table(test_data$Pass,pre_ran)
+print(table)
+# diag(table): Extract the values on the diagonal of the matrix
+sum(diag(table))/sum(table)  # Prediction accuracy
+```
+
+AUC（Area Under Curve: ) is used to indicate the accuracy of prediction. The higher the AUC (the larger the area under the curve), the higher the accuracy of prediction.
+
+mtry and ntree will affect the results of the model, but the influence is not very significant. 
+
+The most important variables obtained by the random forest model are inconsistent with those obtained by the linear regression model. Classification model and linear regression model have different results because of their different principles. 
+
+The results of random forest can be compared with the results of other classification models.
+
