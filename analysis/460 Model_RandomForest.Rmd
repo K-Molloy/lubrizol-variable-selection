@@ -30,9 +30,9 @@ data_model <- data_model[1:nrow(data_model),477:ncol(data_model)]
 ```
 
 ```{r}
-a=ncol(data_model) # number of columns
-b=nrow(data_model)*0.8 # 80% number of rows
-c=c()
+a<-ncol(data_model) # number of columns
+b<-nrow(data_model)*0.8 # 80% number of rows
+c<-c()
 # Delete columns with more than 80% zeros
 for(i in 1:a){
   # print(sum(data_model[,i]==0)) # Number of 0 per column
@@ -41,7 +41,7 @@ for(i in 1:a){
   }
   }
 print(c) # Columns to be deleted
-Data_remove=data_model[,-c]
+Data_remove<-data_model[,-c]
 Data_remove$Pass = as.numeric(Data_remove$Response >= 50)
 Data_remove$Pass <- as.factor(Data_remove$Pass)
 # Replace Response with Pass
@@ -52,9 +52,9 @@ Data_remove <- subset(Data_remove, select = -c(Response))
 ```{r}
 set.seed(100)
 # Divide the data set  into training set and test set, the ratio is 7:3
-train_sub = sample(nrow(Data_remove),7/10*nrow(Data_remove))
-train_data = Data_remove[train_sub,]
-test_data = Data_remove[-train_sub,]
+train_sub <- sample(nrow(Data_remove),7/10*nrow(Data_remove))
+train_data <- Data_remove[train_sub,]
+test_data <- Data_remove[-train_sub,]
 ```
 
 
@@ -98,7 +98,7 @@ Mean decrease Gini: the decrease of Gini coefficient after variable replacement.
 
 ```{r}
 # importance()
-imp= as.data.frame(rf$importance)
+imp <- as.data.frame(rf$importance)
 # Check which variables are important
 best <- subset(imp,imp$MeanDecreaseGini>10)
 ```
@@ -116,7 +116,7 @@ varImpPlot(rf, main = "variable importance",n.var=15)
 # Predicting the test sets
 pre_ran <- predict(rf,newdata=test_data)
 # Integrating real and predicted values
-obs_p_ran = data.frame(prob=pre_ran,obs=test_data$Pass)
+obs_p_ran <- data.frame(prob=pre_ran,obs=test_data$Pass)
 # Output confusion matrix
 table(test_data$Pass,pre_ran,dnn=c("Real","Predict"))
 # Draw ROC curve
