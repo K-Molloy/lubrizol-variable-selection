@@ -91,22 +91,6 @@ varImpPlot(rf, main = "variable importance",n.var=15)
 
 
 ```{r}
-set.seed(123)
-# train_data.cv 
-# #提取验证结果绘图
-# train_data.cv$Response  
-# train_data.cv.mean 
-# head(train_data.cv.mean, 10)
-#拟合线图
-library(ggplot2)
-ggplot(train_data.cv.mean, aes(Group.1, x)) +
-geom_line() +
-theme(panel.grid = element_blank(), panel.background = element_rect(color = 'black', fill = 'transparent')) +
-labs(title = '',x = 'Number of OTUs', y = 'Cross-validation error')
-
-```
-
-```{r}
 # Predicting the test sets
 pre_ran <- predict(rf,newdata=test_data)
 plot(test_data$Response,pre_ran,
@@ -135,7 +119,6 @@ Var explained's value did not increase, but decreased, indicating that the rando
 
 ```{r}
 print(rf_new)
-#为了方便后续评估随机森林模型的性能，将总数据集分为训练集(占 70%)和测试集(占 30%)
 pre_ran <- predict(rf_new,newdata=test_data)
 plot(test_data$Response,pre_ran,
      xlab = 'test_data Response', ylab = 'Predict')
