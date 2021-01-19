@@ -3,8 +3,12 @@ title: "460 Model_RF_Regression"
 author: "Geyi Liu"
 date: "2021/1/19"
 output:
-  pdf_document: default
-  html_document: default
+  pdf_document:
+    toc: no
+  bookdown::pdf_document2:
+    toc: no
+bibliography: references.bib
+classoption: a4paper
 ---
 
 Introduction:
@@ -89,7 +93,6 @@ varImpPlot(rf, main = "variable importance",n.var=15)
 ```
 
 
-
 ```{r}
 # Predicting the test sets
 pre_ran <- predict(rf,newdata=test_data)
@@ -141,4 +144,20 @@ rf_new1 <- randomForest(Response ~ Group1_11+Group1_9+Group1_2+Group2_20+
                        , data=train_data,importance=TRUE, proximity=TRUE)
 print(rf_new1)
 ```
-Compared with incMSE, the effect of incNodePurity is worse. So it's better to use incMSE as the standard. The variables predicted by random forest regression can be compared with multiple linear regression model
+Compared with incMSE, the effect of incNodePurity is worse. So it's better to use incMSE as the standard.
+
+
+Try to delete some variables in rf_new
+```{r}
+# There are many variables, so the operation time will be long
+# Based on incMSE, the top 10 variables were selected
+set.seed(100)
+rf_new3 <- randomForest(Response ~ Group1_11+Group1_9+Group2_20+Group2_9+
+                         Group13_50+Group13_3+Group2_3+Group13_62+Group2_18+
+                         Group13_49
+                       , data=train_data,importance=TRUE, proximity=TRUE)
+print(rf_new3)
+```
+Var explained: 69.21 only reduced by 0.01. To some extent, rf_new3 is better than rf new.
+
+The variables predicted by random forest regression can be compared with multiple linear regression model.
