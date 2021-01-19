@@ -1,0 +1,163 @@
+---
+title: "460 Model_RF_Regression"
+author: "Geyi Liu"
+date: "2021/1/19"
+output:
+  pdf_document:
+    toc: no
+  bookdown::pdf_document2:
+    toc: no
+bibliography: references.bib
+classoption: a4paper
+---
+
+Introduction:
+https://corporatefinanceinstitute.com/resources/knowledge/other/random-forest/
+https://pubs.acs.org/doi/10.1021/ci034160g
+
+
+The essence of random forest algorithm is classifier ensemble algorithm based on decision tree. Compared with neural network, random forest reduces the amount of computation and improves the prediction accuracy. Moreover, the algorithm is insensitive to collinearity and robust to missing data and unbalanced data, which can be well adapted to thousands of explanatory variable data sets.
+
+
+```{r}
+library(pROC) # Draw ROC curve
+library(randomForest)
+library(stringr)
+library(dplyr)
+data <- read.csv("Data.csv", stringsAsFactors=FALSE)
+data$LAB <- as.factor(data$LAB) # convert LAB to be a factor
+data[is.na(data)] <- 0 # replace NAs with zero
+data_model <- data
+data_model$X <- NULL # drop identifier column
+data_model$LAB <- NULL # drop non-numeric LAB column
+data_model <- data_model[1:nrow(data_model),477:ncol(data_model)]
+```
+
+```{r}
+a=ncol(data_model) # number of columns
+b=nrow(data_model)*0.8 # 80% number of rows
+c=c()
+# Delete columns with more than 80% zeros
+for(i in 1:a){
+  # print(sum(data_model[,i]==0)) # Number of 0 per column
+  if( sum(data_model[,i]==0)>=b ){
+    c=append(c,i)
+  }
+  }
+print(c) # Columns to be deleted
+Data_remove=data_model[,-c]
+```
+
+
+```{r}
+set.seed(100)
+# Divide the data set  into training set and test set, the ratio is 7:3
+train_sub = sample(nrow(Data_remove),7/10*nrow(Data_remove))
+train_data = Data_remove[train_sub,]
+test_data = Data_remove[-train_sub,]
+```
+
+
+# Some important parameters of randomForest()
+
+ntree: the number of trees in the forest. The default is 500
+mtry: number of features used per tree
+Importance: whether to calculate theimportance of variables. The default value is false
+Proximity: whether to calculate the similarity between observations
+
+% Var explained: 69.78: Goodness of fit,
+It is similar to the R-square in regression analysis
+
+```{r}
+# There are many variables, so the operation time will be long
+set.seed(100)
+rf <- randomForest(Response ~ ., data=train_data,importance=TRUE, proximity=TRUE)
+print(rf)
+```
+IncMSE(increase in mean squared error):  By assigning a random value to each predictive variable, if the predictive variable is more important, the prediction error of the model will increase after its value is randomly replaced. Therefore, the larger the value is, the more important the variable is;
+
+Incnodepurity(increase in node purity): It is measured by the sum of squares of residuals, which represents the influence of each variable on the heterogeneity of observations on each node of the classification tree, so as to compare the importance of variables. The larger the value, the greater the importance of the variable.
+
+One of the two is used as an index to judge the importance of predictive variables. It should be noted that there are some differences between the two rankings.
+
+```{r}
+# importance()
+imp= as.data.frame(rf$importance)
+```
+
+Group1, Group2 and Group13 are the three most influential groups.
+
+```{r}
+# Output the top 15 important variables
+varImpPlot(rf, main = "variable importance",n.var=15)
+```
+
+
+```{r}
+# Predicting the test sets
+pre_ran <- predict(rf,newdata=test_data)
+plot(test_data$Response,pre_ran,
+     xlab = 'test_data Response', ylab = 'Predict')
+abline(1,1,col = 2)
+# Predicting the train sets
+pre_ran <- predict(rf,newdata=train_data)
+plot(train_data$Response,pre_ran,
+     xlab = 'train_data Response', ylab = 'Predict')
+abline(1,1,col = 2)
+```
+
+```{r}
+# There are many variables, so the operation time will be long
+# Based on incMSE, the top 15 variables were selected
+set.seed(100)
+rf_new <- randomForest(Response ~ Group1_11+Group1_9+Group2_20+Group2_9+
+                         Group13_50+Group13_3+Group2_3+Group13_62+Group2_18+
+                         Group13_49+Group2_32+Group13_63+Group1_30+Group1_29+
+                         Group2_23
+                       , data=train_data,importance=TRUE, proximity=TRUE)
+print(rf_new)
+```
+
+Var explained's value did not increase, but decreased, indicating that the random forest regression model using only these 15 more important variables did not get better results.
+
+```{r}
+print(rf_new)
+pre_ran <- predict(rf_new,newdata=test_data)
+plot(test_data$Response,pre_ran,
+     xlab = 'test_data Response', ylab = 'Predict')
+abline(1,1,col = 2)
+# Predicting the train sets
+pre_ran <- predict(rf,newdata=train_data)
+plot(train_data$Response,pre_ran,
+     xlab = 'train_data Response', ylab = 'Predict')
+abline(1,1,col = 2)
+```
+
+```{r}
+# There are many variables, so the operation time will be long
+# Based on incNodePurity, the top 15 variables were selected
+set.seed(100)
+rf_new1 <- randomForest(Response ~ Group1_11+Group1_9+Group1_2+Group2_20+
+                         Group1_8+Group2_9+Group1_7+Group2_32+Group2_3+
+                         Group1_30+Group2_18+Group1_29+Group2_13+Group13_3+
+                         Group2_23
+                       , data=train_data,importance=TRUE, proximity=TRUE)
+print(rf_new1)
+```
+Compared with incMSE, the effect of incNodePurity is worse. So it's better to use incMSE as the standard.
+
+
+Try to delete some variables in rf_new
+```{r}
+# There are many variables, so the operation time will be long
+# Based on incMSE, the top 10 variables were selected
+set.seed(100)
+rf_new3 <- randomForest(Response ~ Group1_11+Group1_9+Group2_20+Group2_9+
+                         Group13_50+Group13_3+Group2_3+Group13_62+Group2_18+
+                         Group13_49
+                       , data=train_data,importance=TRUE, proximity=TRUE)
+print(rf_new3)
+```
+Var explained: 69.21 only reduced by 0.01. To some extent, rf_new3 is better than rf new.
+
+The variables predicted by random forest regression can be compared with multiple linear regression model.
