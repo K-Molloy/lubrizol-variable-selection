@@ -1,0 +1,166 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r}
+library(mlbench)
+library(MASS)
+library(pROC)
+library(foreign)
+library("nnet")
+library(ROCR)
+library(bigmemory)
+library(pscl)
+library(car)
+library(dplyr)
+library(broom)
+library(ggplot2)
+library(modelr)
+```
+
+
+```{r}
+data <- read.csv("normalised_data_460.csv", header = TRUE, sep = ",", stringsAsFactors =  FALSE)
+#summary(data)
+
+```
+
+Family=Binomial fits a logistic model
+Subset First column, response , LAB
+```{r}
+data = subset(data, select = -c(1,334,335) )
+```
+
+Removing zero majority columns took this idea from Geyi.
+```{r}
+data <- data[which(colMeans(data)>0.02,)]
+```
+
+
+
+#I tested without the sampling 
+```{r}
+dt = sort(sample(nrow(data), nrow(data)*.7))
+training_data<-data[dt,]
+testing_data<-data[-dt,]
+```
+
+Binomial pt1
+logit_1 <- glm(Response~. ,data = testing_data, family = binomial) Family = "Binomial" Represents logistic regression.
+```{r}
+options(max.print=999999)
+maxit=100
+glm.fit <- glm(Pass~. ,data = data, family = "binomial")
+#vif(glm.fit)
+summary(glm.fit)
+```
+The Residual deviance is a measure of the lack of fit of your model taken as a whole, whereas the Null deviance is such a measure for a reduced model that only includes the intercept.
+
+Number of Fisher scoring iteration are the number of iteratons before the alogorithm did not yeild any additional improvement and finishes.
+
+Null deviance: The null deviance tells us how well we can predict our output only using the intercept. Smaller is better.
+
+Residual deviance: The residual deviance tells us how well we can predict our output using the intercept and our inputs. Smaller is better. .
+
+AIC: The AIC is the "Akaike information criterion" and it's an estimate of how well your model fits the data. The lower the better.
+
+
+
+Removing the first set of correlated variables.
+```{r}
+glm.fit <- glm(Pass ~ Group2_18 + Group2_22 + Group3_11 +  Group9_12 + Group9_23 + Group9_24 + Group9_25 + Group9_26 + Group9_51 + Group9_57 + Group13_9 + Group13_47
+ + Group13_49 + Group13_50 + Group13_53, data = data, family = "binomial")
+summary(glm.fit)
+```
+
+
+Further removing down.
+```{r}
+glm.fit <- glm(Pass ~ Group2_18 + Group2_22 + Group3_11  + Group9_12 + Group9_51 + Group9_57 + Group13_47
+ + Group13_49 + Group13_50 , data = data, family = "binomial")
+summary(glm.fit)
+```
+
+This table repesents the pass/Fail for the model. instances on the diagonals give the correct classification and off diagonals are where mistakes are made.
+```{r}
+glm.probs  <- predict(glm.fit,type = "response")
+glm.pred <- ifelse(glm.probs > 0.5, "pass", "Fail")
+#attach(data)
+table(glm.pred,Pass)
+mean(glm.pred == Pass)
+```
+the mean prints out at 0 but the value is approxiamtely 5% or 0.05. Shows very little mistakes were made.
+
+
+Binomial pt2
+```{r}
+backwards <- step(glm.fit) # Backwards selection is the default
+summary(backwards)
+```
+
+```{r}
+glm.fit <- glm(Pass ~ Group2_18 + Group2_22 + Group3_11  + Group9_12 +  Group9_57 + Group13_47
+ + Group13_49  , data = data, family = "binomial")
+summary(glm.fit)
+```
+
+
+
+Testing using glm.fit model.
+```{r}
+#Checking analysis of deviance
+anova(glm.fit, test="Chisq")
+
+#Checking McFaddens pseudo R2 statistic. 0.4 represents a good fit
+list(glm.fit = pscl::pR2(glm.fit)["McFadden"])
+```
+
+
+Logistic regression doesnt assume the residuals are normally distributed, not the variance is constant. However deviance residual is useful to determine whether or not individual points do not fit the model well. This plot shows they are all within 3 standard deviations. But this is using the normalised data so potentially this could have masked the outliers? Below this is shows the Cooks distance. This identifys the influential points.
+```{r}
+model1_data <- augment(glm.fit) %>% mutate(index = 1:n())
+
+ggplot(model1_data, aes(index, .std.resid)) + 
+  geom_point(alpha = .5) +
+  geom_ref_line(h = 3)
+plot(glm.fit, which = 4, id.n = 5)
+```
+
+ AUC score 1 represents perfect classifier, and 0.5 represents a worthless classifier. This produces 0.78.
+```{r}
+Predict_Gm <- predict(glm.fit, newdata = data, type = "response")
+model1 = table(data$Pass, Predict_Gm > 0.5) %>% prop.table() %>% round(3)
+
+prediction(Predict_Gm, data$Pass) %>%
+  performance(measure = "tpr", x.measure = "fpr") %>%
+  plot()
+
+prediction(Predict_Gm, data$Pass) %>%
+  performance(measure = "auc") %>%
+  .@y.values
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

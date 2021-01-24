@@ -1,0 +1,103 @@
+---
+title: "460 Model_LARS regression model"
+author: "Geyi Liu"
+date: "2020/12/13"
+output: html_document
+---
+
+Least Angle Regression(LARS) is a regression algorithm suitable for high-dimensional data:
+1) It is especially suitable for the case that the feature dimension n is much higher than the sample number M.
+2) Its computing speed is almost the same as that of the forward selection algorithm
+
+The main disadvantage of LARs:
+Since the direction of Lars iteration is determined by the residual error of the target, the algorithm is very sensitive to the noise of the sample.
+
+This is only an exploratory modeling, and the specific results need to be compared with other models
+
+```{r}
+library(stringr)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(car)
+data <- read.csv("Data.csv", stringsAsFactors=FALSE)
+data$LAB <- as.factor(data$LAB) # convert LAB to be a factor
+data[is.na(data)] <- 0 # replace NAs with zero
+```
+
+Please let me know if there is a better method to remove the zero majority column
+The current  method is not very good. The number of variables in the dataset affects the results of the model
+```{r}
+data_model <- data
+data_model$X <- NULL # drop identifier column
+data_model$LAB <- NULL # drop non-numeric LAB column
+data_model <- data_model[1:nrow(data_model),477:ncol(data_model)]
+data_model <- data_model[which(colMeans(data_model) > 0.05,)]# Remove 0 majority columns
+data_predictors <- data.matrix(select(data_model, -c("Response")))
+```
+
+Lar regression using non standardized datasets
+```{r, include=FALSE}
+library(lars)
+lar.1 <- lars(data_predictors,data_model$Response, type="lar")
+# CP is used to measure collinearity, Select the result with smallest CP value
+summary(lar.1)
+```
+
+mode = 'fraction' (this is the fraction of the saturated |beta|)
+```{r}
+cva <- cv.lars(data_predictors,data_model$Response,type = "lar",
+              index=seq(from=0,to=0.1,length=100),mode = 'fraction',plot.it = TRUE)
+# Extract the saturation in which the mean square error is minimized 
+cva$index[which.min(cva$cv)]
+best <- cva$index[which.min(cva$cv)]
+predict(lar.1,s=best,type = 'coefficients',mode = 'fraction')
+```
+
+```{r}
+coef <- coef.lars(lar.1,mode = "fraction",s = best)
+coef[coef!=0]
+```
+
+mode = 'step' (this is the number of steps in lars procedure)
+```{r, include=FALSE}
+lar.2 <- lars(data_predictors,data_model$Response, type="lar")
+# CP is used to measure collinearity, Select the result with smallest CP value
+summary(lar.2) # step number:153
+```
+
+```{r}
+cva <- cv.lars(data_predictors,data_model$Response, type = 'lar',mode = 'step')
+# Obtain the optimal regression coefficient
+cva$index[which.min(cva$cv)]
+best <- cva$index[which.min(cva$cv)]
+```
+
+The purpose of calculating the saturation |beta|/max|beta| here is to compare with the regression coefficient determined by using saturation as index
+On this data set, the saturation difference between the two modes is somewhat large, and the reason is unknown at present. Usually they are very close.
+```{r}
+# In the best step, the corresponding regression coefficient 
+# and its saturation |beta|/max|beta| are
+lar.2$beta[best,]
+sum(abs(lar.2$beta[best,]))/sum(abs(lar.2$beta[153,]))
+```
+
+When the type is "fit", a new sample newx can be given, then the function returns the predicted value obtained by Lars regression model;
+```{r}
+# Then we use the step number as the parameter index and predict the given sample
+# The first twenty lines of X2, that is, the first twenty training samples, are taken into the model as newx
+predict(lar.1,newx = data_predictors[1:20,] ,s=best,type = 'fit',mode = 'step')
+```
+
+When the type is "coefficient", the function returns the regression coefficient of the model without inputting newx;
+```{r}
+predict(lar.1 ,s=best,type = 'coefficient',mode = 'step')
+```
+
+Output non-zero coefficient 
+```{r}
+coef <- coef.lars(lar.2,mode = "step",s = best)
+coef[coef!=0]
+```
+
+At present, the results of this method are not perfect, there are some problems, I will continue to try to improve, if this method is not very ideal, I will give up in time, if everyone have new ideas, please let me know.    

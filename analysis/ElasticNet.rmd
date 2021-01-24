@@ -1,0 +1,119 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+```{r}
+library(mlbench)
+library(MASS)
+library(pROC)
+library(foreign)
+library("nnet")
+library(ROCR)
+library(caret)
+library(glmnet)  # for ridge regression
+library(dplyr)   # for data cleaning
+library(psych)
+library(bigmemory)
+```
+
+I haven't got this fully finished yet.
+```{r}
+data <- read.csv("standardised_data_460.csv", header = TRUE, sep = ",", stringsAsFactors =  FALSE)
+#summary(data)
+
+```
+
+
+```{r}
+data = subset(data, select = -c(1,334,336) )
+```
+
+
+
+```{r}
+memory.limit(size = 10000000000)
+y <- data %>% select(Response) %>% scale(center = TRUE, scale = FALSE) %>% as.matrix()
+X <- data %>% select(-Response) %>% as.matrix()
+
+train_control <- trainControl(method = "repeatedcv",
+                              number = 5,
+                              repeats = 5,
+                              search = "random",
+                              verboseIter = TRUE)
+
+# Train the model
+elastic_net_model <- train(Response ~ .,
+                           data = cbind(y, X),
+                           method = "glmnet",
+                           preProcess = c("center", "scale"),
+                           tuneLength = 25,
+                           trControl = train_control)
+
+# Check multiple R-squared
+y_hat_enet <- predict(elastic_net_model, X)
+rsq_enet <- cor(y, y_hat_enet)^2
+
+#The mixing percentage is plotted with RMSE scores with different values of the regularization parameter.
+plot(elastic_net_model)
+```
+
+
+Final fitting alpha value off 0.397 and lambda of 0.0844
+
+
+Elastic regression
+```{r}
+# Split the data into training and test set
+set.seed(123)
+training.samples <- data$Response %>%
+  createDataPartition(p = 0.8, list = FALSE)
+train.data  <- data[training.samples, ]
+test.data <- data[-training.samples, ]
+```
+
+```{r}
+# Predictor variables
+x <- model.matrix(Response~., train.data)[,-1]
+# Outcome variable
+y <- train.data$Response
+```
+
+```{r}
+# Build the model using the training set
+set.seed(123)
+model <- train(
+  Response ~., data = train.data, method = "glmnet",
+  trControl = trainControl("cv", number = 10),
+  tuneLength = 10
+)
+
+#The mixing percentage is plotted with RMSE scores with different values of the regularization parameter.
+plot(model)
+# Best tuning parameter
+model$bestTune
+```
+Best tuning paramter is alpha = 0/5 and lambda = 0.0087
+```{r}
+# Coefficient of the final model. You need
+# to specify the best lambda
+#coef(model$finalModel, model$bestTune$lambda)
+```
+
+```{r}
+# Make predictions on the test data
+x.test <- model.matrix(Response ~., test.data)[,-1]
+predictions <- model %>% predict(x.test)
+# Model performance metrics
+data.frame(
+  RMSE = RMSE(predictions, test.data$Response),
+  Rsquare = R2(predictions, test.data$Response)
+)
+#Predicted RMSE of 7.32 and Rsquared of 0.68
+```
+```{r}
+#summary(model, metric = "RMSE")
+```
+
