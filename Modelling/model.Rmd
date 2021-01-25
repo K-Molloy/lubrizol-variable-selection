@@ -16,48 +16,31 @@ library(tidyverse)
 library(glmnet)
 library(MLmetrics)
 
-data <- read.csv("Data.csv", stringsAsFactors=FALSE)
-data$LAB <- as.factor(data$LAB) # convert LAB to be a factor
-data[is.na(data)] <- 0 # replace NAs with zero
-```
-
-```{r}
-data_model <- data
-data_model$X <- NULL # drop identifier column
-data_model$LAB <- NULL # drop non-numeric LAB column
-data_model <- data_model[1:nrow(data_model),477:ncol(data_model)]
-```
-
-A new method is used to eliminate the zero majority of columns by counting the proportion of 0 in each column
-```{r}
-a=ncol(data_model) # number of columns
-b=nrow(data_model)*0.8 # 80% number of rows
-c=c()
-# Delete columns with more than 80% zeros
-for(i in 1:a){
-  # print(sum(data_model[,i]==0)) # Number of 0 per column
-  if( sum(data_model[,i]==0)>=b ){
-    c=append(c,i)
-  }
-  }
-print(c) # Columns to be deleted
-Data_remove=data_model[,-c]
+data <- read.csv("../data/standardised_data_460.csv", stringsAsFactors=FALSE)
 ```
 
 
 # Ridge Regression
 
-Making std_data_predictors store all attributes that could influence response.
+Making train_preds and test_preds store all attributes that could influence response.
 
 ```{r}
-std_data_predictors = data.matrix(select(Data_remove, -c(Response)))
+set.seed(100)
+# Divide the data set  into training set and test set, the ratio is 7:3
+train_sub = sample(nrow(data),7/10*nrow(data))
+train_data = data[train_sub,]
+train_preds = data.matrix(select(train_data, -c("Response")))
+
+test_data = data[-train_sub,]
+test_preds = data.matrix(select(test_data, -c("Response")))
+
 ```
 
 Finding the lambda value that creates the lowest mean squared error using k fold cross validation.
 
 ```{r}
 kfolds_cv_model <- 
-  cv.glmnet(std_data_predictors, Data_remove$Response, alpha = 0)
+  cv.glmnet(train_preds, train_data$Response, alpha = 0)
 
 bestLambdaVal = kfolds_cv_model$lambda.min
 ```
@@ -65,34 +48,61 @@ bestLambdaVal = kfolds_cv_model$lambda.min
 Using the best lambda value found, we create a ridge regression model utilising all predictor variables.
 
 ```{r}
-finalModel <- glmnet(std_data_predictors, Data_remove$Response, alpha = 0, lambda = bestLambdaVal)
+finalModel <- glmnet(train_preds, train_data$Response, alpha = 0, lambda = bestLambdaVal)
 ```
 
 Predict the response variable using the model for each set of attribute values, then calculate the R^2 value to see the percentage of the variance which is explained by the model.
 
 ```{r}
-predictedResponse <- predict(finalModel, s = bestLambdaVal, newx = std_data_predictors)
+predictedResponse <- predict(finalModel, s = bestLambdaVal, newx = test_preds)
 
-sSE <- sum((predictedResponse - Data_remove$Response)^2)
-sST <- sum((Data_remove$Response - mean(Data_remove$Response))^2)
+sSE <- sum((predictedResponse - test_data$Response)^2)
+sST <- sum((data$Response - mean(data$Response))^2)
 
 
 rSQ <- 1 - sSE/sST
+rSQ
 ```
+
+Calculating the adjusted R-Squared value:
+```{r}
+n = dim(data)[1]
+k = dim(data)[2]
+
+adrSQ = 1 - ( (1 - rSQ)*(n-1) )/(n-k-1)
+adrSQ
+```
+
+
+
+
+
+
+
+
+
 
 # Lasso Regression
 
 Making std_data_predictors store all attributes that could influence response.
 
 ```{r}
-std_data_predictors = data.matrix(select(Data_remove, -c("Response")))
+set.seed(100)
+# Divide the data set  into training set and test set, the ratio is 7:3
+train_sub = sample(nrow(data),7/10*nrow(data))
+train_data = data[train_sub,]
+train_preds = data.matrix(select(train_data, -c("Response")))
+
+test_data = data[-train_sub,]
+test_preds = data.matrix(select(test_data, -c("Response")))
+
 ```
 
 Finding the lambda value that creates the lowest mean squared error using k fold cross validation.
 
 ```{r}
 kfolds_cv_model <- 
-  cv.glmnet(std_data_predictors, Data_remove$Response, alpha = 1)
+  cv.glmnet(train_preds, train_data$Response, alpha = 1)
 
 bestLambdaVal = kfolds_cv_model$lambda.min
 ```
@@ -100,29 +110,28 @@ bestLambdaVal = kfolds_cv_model$lambda.min
 Using the best lambda value found, we create a lasso regression model utilising all predictor variables.
 
 ```{r}
-finalModel <- glmnet(std_data_predictors, Data_remove$Response, alpha = 1, lambda = bestLambdaVal)
+finalModel <- glmnet(train_preds, train_data$Response, alpha = 1, lambda = bestLambdaVal)
 ```
 
 Predict the response variable using the model for each set of attribute values, then calculate the R^2 value to see the percentage of the variance which is explained by the model.
 
 ```{r}
-predictedResponse <- predict(finalModel, s = bestLambdaVal, newx = std_data_predictors)
+predictedResponse <- predict(finalModel, s = bestLambdaVal, newx = test_preds)
 
-sSE <- sum((predictedResponse - Data_remove$Response)^2)
-sST <- sum((Data_remove$Response - mean(Data_remove$Response))^2)
+sSE <- sum((predictedResponse - test_data$Response)^2)
+sST <- sum((data$Response - mean(data$Response))^2)
 
 
 rSQ <- 1 - sSE/sST
+rSQ
 ```
 
+Calculating the adjusted R-Squared value:
+```{r}
+n = dim(data)[1]
+k = dim(data)[2]
 
-
-
-
-
-
-
-
-
-
+adrSQ = 1 - ( (1 - rSQ)*(n-1) )/(n-k-1)
+adrSQ
+```
 
