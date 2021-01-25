@@ -1,0 +1,233 @@
+---
+title: "Linear model"
+author: "Geyi Liu"
+date: "2020/12/19"
+output:
+  bookdown::pdf_document2:
+    toc: no
+  pdf_document:
+    toc: no
+---
+
+```{r}
+# Library used
+library(stringr)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(car)
+library(tidyverse)
+```
+
+```{r}
+# Read data
+data <- read.csv("normalised_data_460.csv")
+data$X <- NULL 
+data$Pass <- NULL 
+```
+
+```{r}
+# A linear regression model of the relationship between remain group variables and Response was established
+model <- lm(Response~.,data = data)
+summary(model)
+```
+
+```{r}
+# idea from Kieran, Extract p values
+pvals = coef(summary(model))[,4]
+# print(pvals)
+# Get group names where p < 0.025
+high_sig = names(pvals)[pvals < 0.05]
+print(high_sig)
+```
+
+```{r,include=FALSE}
+# The new linear regression model is composed of the selected variables
+model_2 <- lm(Response~ Group1_6+Group1_9+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group11_4+Group11_6+Group9_23+Group9_24+
+                Group9_53+Group9_54+Group10_5+Group13_5+Group13_6+
+                Group13_9+Group13_17+Group13_20+Group13_21+Group13_31+
+                Group13_24+Group13_34+Group13_35+Group13_36+Group13_45+
+                Group13_46+Group13_47+Group13_48+Group13_52+Group13_62+
+                Group13_63,data = data)
+
+
+summary(model_2)
+```
+
+```{r}
+# Group9_53,Group13_4,Group13_17,Group13_21,Group13_24,Group13_45,
+# Group13_48,Group13_52 are removed by step() function
+step(model_2,test='F')
+```
+
+```{r}
+model_3 <- lm(Response~ Group1_6+Group1_9+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group11_4+Group11_6+Group9_54+Group10_5+Group13_5+
+                Group13_6+Group13_9+Group13_20+Group13_34+Group13_35+Group13_36+
+                Group13_45+Group13_47+Group13_62+Group13_63,data = data)
+
+summary(model_3)
+par(mfrow=c(2,2))
+plot(model_3)
+```
+
+VIF measure the severity of multicollinearity in multiple linear regression model.If the variance expansion factor is more than 10, the regression model has serious multicollinearity. We can find that the multiple linear model after stepwise regression has strong collinearity
+```{r}
+# model_3 has high collinearity
+vif(model_3)
+# The variables after stepwise regression construct a new data set
+Data_select <- select(data,Group1_6,Group1_9,Group1_11,Group1_20,Group2_4,Group2_14,
+                Group3_11,Group11_4,Group11_6,Group9_54,Group10_5,Group13_5,Group13_6,
+                Group13_9,Group13_20,Group13_34,Group13_35,Group13_36,
+                Group13_45,Group13_47,Group13_62,Group13_63,Response)
+
+```
+Show the correlation between the same group of variables in the remaining variables
+```{r}
+library(corrplot)
+# Correlation coefficient of Group_1 and Group2 variables
+cor_Group1 <- data.matrix(select(Data_select, c('Group1_6','Group1_9','Group1_11','Group1_20','Group2_4','Group2_14')))
+corrplot(cor(cor_Group1),method = "number")
+# Correlation coefficient of Group_11 variables
+cor_Group11 <- data.matrix(select(Data_select, c('Group11_4','Group11_6')))
+corrplot(cor(cor_Group11),method = "number")
+# Correlation coefficient of Group_13 variables
+cor_Group13 <- data.matrix(select(Data_select, c('Group13_5','Group13_6','Group13_9','Group13_20','Group13_34','Group13_35',
+  'Group13_36','Group13_45','Group13_47','Group13_62','Group13_63',)))
+corrplot(cor(cor_Group13),tl.cex = 0.8)
+```
+
+Some variables in model_3 is not statistically significant enough. We will continue to process them with drop1()
+```{r}
+drop1(model_3,test = 'F')
+# Remove Group13_45
+model_4 <- lm(Response~ Group1_6+Group1_9+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group11_4+Group11_6+Group9_54+Group10_5+Group13_5+
+                Group13_6+Group13_9+Group13_20+Group13_34+Group13_35+Group13_36+
+                Group13_47+Group13_62+Group13_63,data = data)
+```
+
+```{r}
+vif(model_4)
+```
+
+So I try to delete some collinear variables manually. The criterion to judge whether the model has collinearity is whether the value of VIF is greater than 10
+```{r}
+# We found that when we tried to remove at least one of these variables,
+# Other variables will no longer be statistically significant in the model
+# Remove Group13_62
+model_5 <- lm(Response~ Group1_6+Group1_9+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group11_4+Group11_6+Group9_54+Group10_5+Group13_5+
+                Group13_6+Group13_9+Group13_20+Group13_34+Group13_35+Group13_36+
+                Group13_47+Group13_63,data = data)
+summary(model_5)
+vif(model_5)
+```
+
+
+The correlation coefficient between Group11_x variables also reached 1.
+```{r}
+# Group11_4, Group11_6 has high VIF
+# According to their p value, remove Group11_6
+# After removing Group11_6, Group11_4's p vlaue decreases, so remove it too
+model_6 <- lm(Response~ Group1_6+Group1_9+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group9_54+Group10_5+Group13_5+
+                Group13_6+Group13_9+Group13_20+Group13_34+Group13_35+Group13_36+
+                Group13_47+Group13_63,data = data)
+# the R-squared value of the model decreased by 0.008. 
+summary(model_6)
+vif(model_6)
+```
+
+
+Final linear model (P value and VIF value were in accordance with the standard)
+```{r}
+# Group1_9,Group1_11 are our main concern
+# Remove Group1_9
+# Remove Group13_34
+model_7 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group2_4+Group2_14+
+                Group3_11+Group9_54+Group10_5+Group13_5+
+                Group13_6+Group13_9+Group13_20+Group13_35+Group13_36+
+                Group13_47+Group13_63,data = data)
+# the R-squared value of the model decreased by 0.006. 
+summary(model_7)
+vif(model_7)
+plot(model_7)
+```
+
+
+
+Linearity:
+If the dependent variable is linearly correlated with the independent variable, there is no systematic correlation between the residual value and the predicted (fitted) value.
+```{r}
+library(car)
+crPlots(model_7,layout=c(2,2),)
+# From the figure, the linear model is suitable for this data set
+# But the relationship between independent variable and dependent variable in the Group9_54 is not linear, so we can try to transform it.
+```
+
+
+Homoscedasticity
+
+ncvTest: Computes a score test of the hypothesis of constant error variance against the alternative that the error variance changes with the level of the response (fitted values), or with a linear combination of predictors.
+
+Null hypothesis: the error variance is constant
+
+Alternative hypothesis: error variance varies with the level of fitting value
+```{r}
+ncvTest(model_7)
+# We can also see this conclusion through the pictures drawn by 
+# spreadLevelPlot() function
+# If the null hypothesis is violated, we will see a non horizontal curve
+spreadLevelPlot(model_7)
+```
+
+
+
+Model prediction: 
+```{r}
+# Using model_7
+pred_data <- subset(data,select = -c(Response))
+pred <- predict(model_7,pred_data)
+plot(pred)
+abline(h = 50, col = 2, lty = 2, lwd = 2)
+percent = length(pred[which(pred>=50)])/length(pred)
+print(percent)
+# According to the prediction model, only 8% of the products passed the test
+# Most products are between 20 and 50
+percent_origin = length(pred[which(data$Response>=50)])/length(data$Response)
+print(percent_origin)
+plot(data$Response)
+abline(h = 50, col = 2, lty = 2, lwd = 2)
+# In the original data set, the pass rate is 18%
+
+# Product passing ratio predicted by the model
+Ratio_model7 = percent/percent_origin
+print(Ratio_model7)
+# we can see whether the distribution of Response 
+# predicted by the model is reasonable
+```
+
+```{r}
+# Using model
+pred_data <- subset(data,select = -c(Response))
+pred <- predict(model,pred_data)
+plot(pred)
+abline(h = 50, col = 2, lty = 2, lwd = 2)
+percent = length(pred[which(pred>=50)])/length(pred)
+print(percent)
+# According to the prediction model, only 8% of the products passed the test
+# Most products are between 20 and 50
+percent_origin = length(pred[which(data$Response>=50)])/length(data$Response)
+print(percent_origin)
+
+plot(data$Response)
+# In the original data set, the pass rate is 18%
+
+# Product passing ratio predicted by the model
+Ratio_model = percent/percent_origin
+print(Ratio_model)
+```
+
+

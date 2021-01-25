@@ -1,0 +1,156 @@
+---
+title: "460_Model_RandomForest_Regression"
+author: "Geyi Liu"
+date: "2021/1/19"
+output:
+  bookdown::pdf_document2:
+    toc: no
+  pdf_document:
+    toc: no
+---
+
+Introduction:
+https://corporatefinanceinstitute.com/resources/knowledge/other/random-forest/  
+https://pubs.acs.org/doi/10.1021/ci034160g  
+https://www.rdocumentation.org/packages/randomForest/versions/4.6-14/topics/randomForest  
+https://www.sciencedirect.com/topics/engineering/random-forest  
+
+The essence of random forest algorithm is classifier ensemble algorithm based on decision tree. Compared with neural network, random forest reduces the amount of computation and improves the prediction accuracy. Moreover, the algorithm is insensitive to collinearity and robust to missing data and unbalanced data, which can be well adapted to thousands of explanatory variable data sets.
+
+
+```{r}
+library(pROC) # Draw ROC curve
+library(randomForest)
+library(stringr)
+library(dplyr)
+data <- read.csv("normalised_data_460.csv")
+data$X <- NULL # drop identifier column
+data$LAB <- NULL # drop non-numeric LAB column
+data$Pass <- NULL 
+```
+
+```{r}
+set.seed(100)
+# Divide the data set  into training set and test set, the ratio is 7:3
+train_sub = sample(nrow(data),7/10*nrow(data))
+train_data = data[train_sub,]
+test_data = data[-train_sub,]
+```
+
+
+# Some important parameters of randomForest()
+
+ntree: the number of trees in the forest. The default is 500
+mtry: number of features used per tree
+Importance: whether to calculate theimportance of variables. The default value is false
+Proximity: whether to calculate the similarity between observations
+
+% Var explained: Goodness of fit,
+It is similar to the R-square in regression analysis
+
+
+```{r}
+# There are many variables, so the operation time will be long
+set.seed(100)
+rf_regression <- randomForest(Response ~ ., data=train_data,importance=TRUE, proximity=TRUE)
+print(rf_regression)
+```
+IncMSE(increase in mean squared error):  By assigning a random value to each predictive variable, if the predictive variable is more important, the prediction error of the model will increase after its value is randomly replaced. Therefore, the larger the value is, the more important the variable is;
+
+Incnodepurity(increase in node purity): It is measured by the sum of squares of residuals, which represents the influence of each variable on the heterogeneity of observations on each node of the classification tree, so as to compare the importance of variables. The larger the value, the greater the importance of the variable.
+
+One of the two is used as an index to judge the importance of predictive variables. It should be noted that there are some differences between the two rankings.
+
+
+```{r}
+# importance()
+imp <- data.frame(importance(rf_regression, scale = TRUE), check.names = FALSE)
+```
+
+
+```{r}
+library(ggplot2)
+# Histogram of %IncMSE
+best <- imp[order(imp$'%IncMSE', decreasing = TRUE)[1:15], ]
+best$Group_name <- rownames(best)
+best$Group_name <- factor(best$Group_name, levels = best$Group_name)
+
+IncMSE <- ggplot(best, aes(Group_name, `%IncMSE`)) +
+geom_col(width = 0.5, fill = '#FFC068', color = NA) +
+labs(title = NULL, x = NULL, y = 'Increase in %IncMSE', fill = NULL) +
+theme(panel.grid = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = 'black')) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+IncMSE
+```
+
+```{r}
+# Histogram of IncNodePurity
+best <- imp[order(imp$'IncNodePurity', decreasing = TRUE)[1:15], ]
+best$Group_name <- rownames(best)
+best$Group_name <- factor(best$Group_name, levels = best$Group_name)
+
+acc <- ggplot(best, aes(Group_name, `IncNodePurity`)) +
+geom_col(width = 0.5, fill = '#FFC068', color = NA) +
+labs(title = NULL, x = NULL, y = 'Increase in IncNodePurity', fill = NULL) +
+theme(panel.grid = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = 'black')) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+acc
+```
+Group1, Group2 and Group13 are the three most influential groups.
+
+```{r}
+# Output the top 15 important variables
+varImpPlot(rf_regression, main = "variable importance",n.var=15)
+```
+
+We try to construct a new random forest model with only the first 15 most important variables
+```{r}
+# Based on incMSE, the top 15 variables were selected
+set.seed(100)
+rf_new <- randomForest(Response ~ Group1_11+Group1_9+Group2_20+Group2_9+
+                         Group2_32+Group13_3+Group2_3+Group2_18+Group1_30+
+                         Group13_50+Group13_62+Group1_2+Group13_49+Group1_29+
+                         Group13_4
+                       , data=train_data,importance=TRUE, proximity=TRUE)
+print(rf_new)
+```
+
+
+```{r}
+# Based on incNodePurity, the top 15 variables were selected
+set.seed(100)
+rf_new1 <- randomForest(Response ~ Group1_11+Group1_9+Group1_2+Group2_20+
+                         Group2_9+Group1_8+Group2_32+Group2_3+Group1_7+
+                         Group1_30+Group2_18+Group13_3+Group2_23+Group1_29+
+                         Group2_13
+                       , data=train_data,importance=TRUE, proximity=TRUE)
+print(rf_new1)
+```
+Compared with incMSE, the effect of incNodePurity is worse. So it's better to use incMSE as the standard.
+
+
+
+```{r}
+pred_data <- subset(data,select = -c(Response))
+pred <- predict(rf_regression,pred_data)
+plot(pred)
+abline(h = 50, col = 2, lty = 2, lwd = 2)
+percent <-  length(pred[which(pred>=50)])/length(pred)
+print(percent)
+# According to the prediction model,15% of the products passed the test
+# Most products are between 20 and 50
+percent_origin = length(pred[which(data$Response>=50)])/length(data$Response)
+print(percent_origin)
+plot(data$Response)
+abline(h = 50, col = 2, lty = 2, lwd = 2)
+# In the original data set, the pass rate is 18%
+
+# Product passing ratio predicted by the model
+Ratio_model_rf = percent/percent_origin
+print(Ratio_model_rf)
+# we can see whether the distribution of Response 
+# predicted by the model is reasonable
+```
+
