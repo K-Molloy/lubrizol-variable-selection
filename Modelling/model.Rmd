@@ -14,6 +14,8 @@ library(lubridate)
 library(car)
 library(tidyverse)
 library(glmnet)
+library(MLmetrics)
+
 data <- read.csv("Data.csv", stringsAsFactors=FALSE)
 data$LAB <- as.factor(data$LAB) # convert LAB to be a factor
 data[is.na(data)] <- 0 # replace NAs with zero
@@ -57,8 +59,6 @@ Finding the lambda value that creates the lowest mean squared error using k fold
 kfolds_cv_model <- 
   cv.glmnet(std_data_predictors, Data_remove$Response, alpha = 0)
 
-plot(kfolds_cv_model)
-
 bestLambdaVal = kfolds_cv_model$lambda.min
 ```
 
@@ -73,15 +73,12 @@ Predict the response variable using the model for each set of attribute values, 
 ```{r}
 predictedResponse <- predict(finalModel, s = bestLambdaVal, newx = std_data_predictors)
 
-sse <- sum((predictedResponse - Data_remove$Response)^2)
-sst <- sum((Data_remove$Response - mean(Data_remove$Response))^2)
+sSE <- sum((predictedResponse - Data_remove$Response)^2)
+sST <- sum((Data_remove$Response - mean(Data_remove$Response))^2)
 
 
-rsq <- 1 - sse/sst
-rsq
+rSQ <- 1 - sSE/sST
 ```
-
-
 
 # Lasso Regression
 
@@ -97,8 +94,6 @@ Finding the lambda value that creates the lowest mean squared error using k fold
 kfolds_cv_model <- 
   cv.glmnet(std_data_predictors, Data_remove$Response, alpha = 1)
 
-plot(kfolds_cv_model)
-
 bestLambdaVal = kfolds_cv_model$lambda.min
 ```
 
@@ -113,16 +108,12 @@ Predict the response variable using the model for each set of attribute values, 
 ```{r}
 predictedResponse <- predict(finalModel, s = bestLambdaVal, newx = std_data_predictors)
 
-sse <- sum((predictedResponse - Data_remove$Response)^2)
-sst <- sum((Data_remove$Response - mean(Data_remove$Response))^2)
+sSE <- sum((predictedResponse - Data_remove$Response)^2)
+sST <- sum((Data_remove$Response - mean(Data_remove$Response))^2)
 
 
-rsq <- 1 - sse/sst
-rsq
+rSQ <- 1 - sSE/sST
 ```
-
-
-
 
 
 
