@@ -133,6 +133,7 @@ Compared with incMSE, the effect of incNodePurity is worse. So it's better to us
 
 
 ```{r}
+# The model predicts on the test set
 pred_data <- subset(data,select = -c(Response))
 pred <- predict(rf_regression,pred_data)
 plot(pred)
