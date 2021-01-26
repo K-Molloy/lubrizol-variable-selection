@@ -1,0 +1,247 @@
+---
+title: "460 CW Grp 10 - Exploratory analysis for Lubrizol"
+author: Alex Meehan
+Date: Nov 2020
+output:
+  html_document:
+    df_print: paged
+---
+```{r,warning=FALSE,message=FALSE}
+# R Markdown version to be inserted into final latex doc
+
+library(dplyr)
+library(ggplot2)
+
+# import the data
+data <- read.csv("Data.csv", stringsAsFactors=FALSE)
+data$LAB <- as.factor(data$LAB) # convert LAB to be a factor
+data[is.na(data)] <- 0 # replace NAs with zero
+```
+
+# Feature selection
+(This assumes the problem has already been described in an Introduction)
+
+The most distinguishing feature of the Lubrizol dataset is that it is highly dimensional: The raw data has 810 attributes for 6,360 different tests.  The 810 attributes break down as follows:
+\begin{itemize}
+  \item 476 ingredient attributes
+  \item 267 chemical sub-groups aggregated into 12 Groups relating to the engine oil additives
+  \item A further 65 chemical sub-groups describing the base oils 
+  \item The lab the tests were conducted at: One of three (A/B/C)
+  \item The response variable, the percentage rust in the test 
+\end{itemize}
+
+The breadth of the raw data means that dimension reduction will be critical for successful modelling.
+
+The data has been anonymised for commercial reasons, so it is not possible to apply domain knowledge at any stage in the process.  The briefing from Lubrizol advised us to base the modelling on the chemical groups, rather than ingredients, as this was simpler and more useful.
+
+The base oil is determined by the oil manufacturer, so these 65 sub-groups are important but cannot be varied by Lubrizol.  This means that we should model them, but consider their impact separately to the other 12 chemical groups for the engine oil additives. 
+
+Several of the chemical group attributes contained a large proportion of zero values, as shown in Figure XX. The chart shows a particular peak of 133 attributes that have >95\% zero values.  Chemical sub-groups with >80\% zero values were excluded from the modelling, as they were unlikely to have a significant impact on overall results and may not have sufficient sample sizes to be representative.  This was confirmed by re-running a simple linear regression model with a >90\% threshold and achieving the same outcomes.  This meant that 169 attributes were excluded from modelling because >80\% values were zero (163 Group 1-12 attributes + 6 Group 13 attributes)
+
+```{r}
+# Plot distribution of zero-values by attribute
+
+# select only the sub-groups (and response)
+data_coll <- data
+data_coll$X <- NULL # drop identifier column
+data_coll$LAB <- NULL # drop non-numeric LAB column
+data_coll <- data_coll[1:nrow(data_coll),477:ncol(data_coll)] # drop ingredients columns
+
+# generate a list with % zero values for each attribute, but not the Response (332 long)
+num_records <- nrow(data_coll)
+pc_zero_by_attribute = c()
+for(i in 1:(ncol(data_coll)-1)){
+  pc_zero_by_attribute[i] = sum(data_coll[,i]==0)/num_records
+}
+
+# plot histogram
+pc_zero_by_attribute <- data.frame(pc_zero_by_attribute) # preferred data format for ggplot
+ggplot(pc_zero_by_attribute,aes(x=pc_zero_by_attribute)) +
+  # Plot histogram
+  geom_histogram(color="black", fill="white", binwidth=0.05) +
+  # Adding line for 80% threshold
+  geom_vline(xintercept = 0.8, color="red", size=1) +
+  annotate("text", x = 0.935, y = 120, label = ">80% zeros threshold", 
+          size = 4, col = "red") +
+  # Labels
+  ylab("Number of sub-group attributes") + 
+  xlab("Percent of attribute values that are zero") +
+  scale_x_continuous(labels = scales::percent) 
+  # ggtitle("Histogram of percent of attribute values that are zero") 
+  ggsave("images/pczeros.png",scale = 1)
+```
+
+```{r, echo = FALSE}
+# Count the number of attributes over different % zeros thresholds
+paste(sum(pc_zero_by_attribute$pc_zero_by_attribute >0.8),"attributes >80%")
+paste(sum(pc_zero_by_attribute$pc_zero_by_attribute >0.95),"attributes >95%")
+
+grp_1_12_zeros <- head(pc_zero_by_attribute$pc_zero_by_attribute,267)
+grp_13_zeros <- tail(pc_zero_by_attribute$pc_zero_by_attribute,65)
+paste(sum(grp_1_12_zeros >0.8),"Grp 1-12 attributes >80%")
+paste(sum(grp_13_zeros >0.8),"Grp 13 attributes >80%")
+```
+
+The test results were compared across the three different labs, shown in Figure XX. 
+The test response scores were similar across all 3 labs, with a range of 2 percentage points, which means that we do not need to either correct the data for this or include the Lab attribute in the modelling.  
+
+The net result of these feature selection steps is that the original figure of 810 attributes is reduced to 170, with limited impact on accuracy.
+
+
+```{r}
+# Violin plots for results (response variable) by LAB
+ggplot(data, aes(x = LAB, y = Response, fill=LAB)) +
+  geom_violin(trim=FALSE, show.legend = FALSE) +
+  scale_x_discrete(name= "", labels=c("Lab A", "Lab B", "Lab C")) +
+  geom_jitter(color="black", size=0.2, alpha=0.05, show.legend = FALSE) +
+  geom_boxplot(width=0.1, fill="white", show.legend = FALSE) +
+  # ggtitle("Violin Plot of the Response Variable for each Lab") + 
+  ylab("Response Variable") +
+  # add labels for mean values and n=
+  annotate("text", x = 1, y = -15, size = 3, label = paste("Mean = ", round(mean(data$Response[data$LAB=="A"]),digits=1),", n=",sum(data$LAB=="A"))) +
+  annotate("text", x = 2, y = -15, size = 3, label = paste("Mean = ", round(mean(data$Response[data$LAB=="B"]),digits=1),", n=",sum(data$LAB=="B"))) +
+  annotate("text", x = 3, y = -15, size = 3, label = paste("Mean = ", round(mean(data$Response[data$LAB=="C"]),digits=1),", n=",sum(data$LAB=="C")))
+  ggsave("images/lab_violin.png",scale = 1)
+```
+
+# Distribution of the data
+
+The distributions of the 170 model attributes were reviewed via a Shiny app, which showed that they are mainly exponentially distributed, with some & normal distributions.  This means that models *not* assuming a normal distribution are likely to perform better.
+
+The distribution of the output variable was also reviewed and can be seen in Figure XX.  It is approximately normally distributed, with 19% results a "pass" (>50).
+
+(this assumes Eugene's pre-processing section covers outliers, otherwise add here)
+  Outliers identified, but not removed:
+  Only represent 0.24% of all recorded values (based on 6??)
+  Would be wrong to eliminate observations based on one outlier from 332 variables
+
+
+```{r}
+# distribution of target variable ("Response")
+
+x_vals = 1:99
+ggplot(data, aes(x=Response)) +
+  # Histogram
+  geom_histogram(color="black", fill="white", binwidth = 5) +
+  # Adding Mean Response
+  geom_vline(aes(xintercept=mean(Response)),
+            color="blue", linetype="dashed", size=1) +
+  annotate("text", x = 35, y = 1050, label = "Mean", size = 4, col = "blue") +
+  # Adding Pass Mark
+  geom_vline(xintercept = 50, color="red", size=1) +
+  annotate("text", x = 58, y = 950, label = "Pass mark", size = 4, col = "red") +
+  # adding line for normal distribution (AM addition)
+  stat_function(fun=function(x) dnorm(x, mean=mean(df_groups$Response), sd=sd(df_groups$Response))*5*6360, linetype="dashed") + # 5=binwidth, 6360=number of data points
+  annotate("text", x = 78, y = 300, label = "Dashed line = Normal distribution overlaid", 
+           size = 3, col = "black") +
+  # Labels
+  # ggtitle("Histogram of the Response Variable") +
+  ylab("Number of tests") + 
+  xlab("Response Variable (0 - 100)")
+ggsave("images/response_hist.png",scale = 1)
+```
+
+
+# Interactions of the variables
+There are two other salient characteristics of the data set that are relevant to our research strategy.  The first characteristic is that a large number of attributes are correlated with the response variable: Of the 163 features selected in pre-processing, 5 attributes have an absolute Pearson Correlation Coefficient >0.5, 65 attributes >0.25 and 93 attributes >0.1.  The second characteristic is the high level of collinearity across attributes, which is demonstrated by the large proportion of the selected features that have a high Variance Inflation Factor, shown in Figure xx.  
+
+These two characteristics suggest that further feature selection steps will be required in the modelling process, which will need to be sophisticated enough to accommodate the large number of attributes are correlated with the response variable and the high levels of collinearity. They also suggest that there are still likely to be a large number of variables involved at the end of modelling process, so our approach will be to model at the sub-group level and then aggregate results back to the overall group level at the end of the process.
+
+
+# find highest correlation sub-groups & meta-groups
+```{r}
+# REMOVE THE ATTRIBUTES WITH LOTS OF ZEROS
+data_coll_zeros_cut <- data_coll
+for(i in ((ncol(data_coll_zeros_cut)-1):1)){ # work from end back so indexing still works when deleting columns
+  if(sum(data_coll_zeros_cut[,i]==0)/num_records >0.8){ # if column > 80% zeros
+    data_coll_zeros_cut[,i] <- NULL # delete the column (if >80% zeros)
+  }
+}
+```
+
+```{r}
+corr_data <- data_coll_zeros_cut
+corr_data<- scale(corr_data) # standardise the variables (for aggregation in meta-groups)
+
+corr <- cor(corr_data, method="pearson") # calculates full corr matrix
+corr <- corr[nrow(corr),1:ncol(corr)] # selects the last row (Response)
+corr <- data.frame(colnames(corr_data), corr) #add back column names
+corr <- corr[1:(nrow(corr)-1), ] # remove last "Response" row (correlation of 1.0)
+corr <- corr[order(-abs(corr$corr)),]   # order correlation list from largest
+colnames(corr) <- c("sub_grp", "pearson_corr")
+
+# This section is not used in the final report - only exploratory
+library(stringr)
+corr$meta_grp <- str_extract(corr$sub_grp, "^(.*?)_") # create meta-groups
+corr_meta <- corr %>%
+  group_by(meta_grp) %>%
+  summarize(avg_corr = mean(pearson_corr))
+corr_meta <- corr_meta[order(-abs(corr_meta$avg_corr)),] # order correlation grp from largest
+```
+
+```{r, echo = FALSE}
+# Count the number of attributes over different Pearson coefficient thresholds
+paste(sum(abs(corr$pearson_corr)>0.5),"attributes >0.5 Pearson")
+paste(sum(abs(corr$pearson_corr)>0.25),"attributes >0.25 Pearson")
+paste(sum(abs(corr$pearson_corr)>0.1),"attributes >0.1 Pearson")
+```
+
+
+
+```{r,echo=FALSE}
+# A linear regression model of the relationship between remain group variables and Response was established
+vif_model <- lm(Response~., data = data_coll_zeros_cut)
+# summary(vif_model)
+library(olsrr)
+# generate Variance Inflation Factors for each variable
+# https://cran.r-project.org/web/packages/olsrr/vignettes/regression_diagnostics.html
+# https://www.rdocumentation.org/packages/olsrr/versions/0.5.3/topics/ols_coll_diag
+vif_table <- ols_vif_tol(vif_model) # takes 5-10 mins to run
+```
+
+
+```{r}
+# bar chart for split of attributes by VIF band (<4 / <10 / <100 / <1000)
+# "The general rule of thumb is that VIFs exceeding 4 warrant further investigation, while VIFs exceeding 10 are signs of serious multicollinearity requiring correction."
+
+# create labels for VIF bands
+for(i in 1:nrow(vif_table)){
+  if (vif_table$VIF[i] < 4) {
+    vif_table$vif_label[i] <- "<4"
+  } else if (vif_table$VIF[i] < 10) {
+    vif_table$vif_label[i] <- "4-10"
+  } else if (vif_table$VIF[i] < 100) {
+    vif_table$vif_label[i] <- "10-100"
+  } else if (vif_table$VIF[i] < 1000) {
+    vif_table$vif_label[i] <- "100-1000"
+  } else {
+    vif_table$vif_label[i] <- ">1000"
+  }
+}
+vif_table$vif_label <- factor(vif_table$vif_label, levels=c("<4","4-10","10-100","100-1000",">1000"), labels=c("<4: Independent variables","4-10: Collinearity may problematic","10-100: Serious multicollinearity,\n requiring correction","100-1000",">1000"))
+
+# create labels for if Grp1-12 or Grp13
+for(i in 1:nrow(vif_table)){
+  if (str_extract(vif_table$Variables[i], "^(.*?)_") == "Group13_") {
+    vif_table$Grp13label[i] <- "Group 13"
+  } else {
+    vif_table$Grp13label[i] <- "Groups 1-12"
+  }
+}
+
+```
+
+```{r}
+# plot the bar chart
+library(ggplot2)
+ggplot(vif_table, aes(Grp13label)) +
+  geom_bar(aes(fill=vif_label)) +
+# Labels
+  ylab("Count of attributes (with <80% zeros)") + 
+  xlab("") +
+  # ggtitle("Number of attributes within each Variance Inflation Factor (VIF) band") +
+  scale_fill_discrete(name = "VIF band")
+ggsave("images/vif.png",scale = 1)
+```
+
+
