@@ -36,7 +36,7 @@ summary(model)
 # idea from Kieran, Extract p values
 pvals = coef(summary(model))[,4]
 # print(pvals)
-# Get group names where p < 0.025
+# Get group names where p < 0.05
 high_sig = names(pvals)[pvals < 0.05]
 print(high_sig)
 ```
@@ -56,8 +56,7 @@ summary(model_2)
 ```
 
 ```{r}
-# Group9_53,Group13_4,Group13_17,Group13_21,Group13_24,Group13_45,
-# Group13_48,Group13_52 are removed by step() function
+# Remove some variables by step function
 step(model_2,test='F')
 ```
 
@@ -111,7 +110,7 @@ model_4 <- lm(Response~ Group1_6+Group1_9+Group1_11+Group1_20+Group2_4+Group2_14
 ```{r}
 vif(model_4)
 ```
-
+There are high collinearity variables in model_4
 So I try to delete some collinear variables manually. The criterion to judge whether the model has collinearity is whether the value of VIF is greater than 10
 ```{r}
 # We found that when we tried to remove at least one of these variables,
