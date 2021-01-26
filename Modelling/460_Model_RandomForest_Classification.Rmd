@@ -151,6 +151,7 @@ sum(diag(table))/sum(table)  # Prediction accuracy
 ```
 
 ```{r}
+# The model predicts on the test set
 pred_out_2<-predict(object=rf,newdata=test_data,type="prob")
 table <- table(test_data$Pass,pre_ran)
 print(table)
