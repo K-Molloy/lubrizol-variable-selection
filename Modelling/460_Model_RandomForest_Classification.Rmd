@@ -1,0 +1,166 @@
+---
+title: "460_Model_RandomForest_Classification"
+author: "Geyi Liu"
+date: "2021/1/10"
+output:
+  bookdown::pdf_document2:
+    toc: no
+  pdf_document:
+    toc: no
+---
+
+Introduction:
+https://corporatefinanceinstitute.com/resources/knowledge/other/random-forest/  
+https://pubs.acs.org/doi/10.1021/ci034160g  
+https://www.rdocumentation.org/packages/randomForest/versions/4.6-14/topics/randomForest  
+https://www.sciencedirect.com/topics/engineering/random-forest
+
+
+The essence of random forest algorithm is classifier ensemble algorithm based on decision tree. Compared with neural network, random forest reduces the amount of computation and improves the prediction accuracy. Moreover, the algorithm is insensitive to collinearity and robust to missing data and unbalanced data, which can be well adapted to thousands of explanatory variable data sets.
+
+
+```{r}
+library(pROC) # Draw ROC curve
+library(randomForest)
+library(stringr)
+library(dplyr)
+data <- read.csv("normalised_data_460.csv")
+data$X <- NULL # drop identifier column
+data$LAB <- NULL # drop non-numeric LAB column
+data$Response <- NULL # drop Response column
+data$Pass <- as.factor(data$Pass)
+```
+
+
+```{r}
+set.seed(100)
+# Divide the data set  into training set and test set, the ratio is 7:3
+train_sub = sample(nrow(data),7/10*nrow(data))
+train_data = data[train_sub,]
+test_data = data[-train_sub,]
+```
+
+
+# Some important parameters of randomForest()
+
+ntree: the number of trees in the forest. The default is 500
+mtry: number of features used per tree
+Importance: whether to calculate theimportance of variables. The default value is false
+Proximity: whether to calculate the similarity between observations
+
+```{r}
+# There are many variables, so the operation time will be long
+set.seed(100)
+rf <- randomForest(Pass ~., data=train_data,importance=TRUE, proximity=TRUE,type=classification)
+print(rf)
+```
+
+
+
+```{r}
+print(rf)
+TP<-rf$confusion[4]
+TN<-rf$confusion[1]
+FN<-rf$confusion[2]
+FP<-rf$confusion[3]
+print(FP)
+# Recall
+Rec <-TP/(TP+FN)
+# Precision
+Pre<-TP/(TP+FP)
+# Accuracy
+Acc<-(TP+TN)/(TP+FN+TN+FP)
+# F1 score
+F1 <- 2*Acc*Rec/(Acc+Rec)
+```
+
+View the importance of variables:
+Mean decrease accuracy: the decrease of accuracy after replacing this variable.
+Mean decrease Gini: the decrease of Gini coefficient after variable replacement. The larger the value, the more important the variable is.
+
+
+```{r}
+# importance()
+imp <- data.frame(importance(rf, scale = TRUE), check.names = FALSE)
+```
+
+
+```{r}
+library(ggplot2)
+# Histogram of MeanDecreaseGini
+best <- imp[order(imp$'MeanDecreaseGini', decreasing = TRUE)[1:15], ]
+best$Group_name <- rownames(best)
+best$Group_name <- factor(best$Group_name, levels = best$Group_name)
+
+gini <- ggplot(best, aes(Group_name, `MeanDecreaseGini`)) +
+geom_col(width = 0.5, fill = '#FFC068', color = NA) +
+labs(title = NULL, x = NULL, y = 'Increase in MeanDecreaseGini', fill = NULL) +
+theme(panel.grid = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = 'black')) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+gini
+```
+
+
+```{r}
+# Histogram of MeanDecreaseAccuracy
+best <- imp[order(imp$'MeanDecreaseAccuracy', decreasing = TRUE)[1:15], ]
+best$Group_name <- rownames(best)
+best$Group_name <- factor(best$Group_name, levels = best$Group_name)
+
+acc <- ggplot(best, aes(Group_name, `MeanDecreaseAccuracy`)) +
+geom_col(width = 0.5, fill = '#FFC068', color = NA) +
+labs(title = NULL, x = NULL, y = 'Increase in MeanDecreaseAccuracy', fill = NULL) +
+theme(panel.grid = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = 'black')) +
+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+acc
+```
+
+Group1_11,Group1_9,Group1_2 are the most important factors that affect whether the product passes the test.
+
+Group1 and Group2  are the three most influential groups.
+
+
+```{r}
+# Output the top 15 important variables
+varImpPlot(rf, main = "variable importance",n.var=15)
+```
+
+```{r}
+# Predicting the test sets
+pre_ran <- predict(rf,newdata=test_data)
+# Integrating real and predicted values
+obs_p_ran = data.frame(prob=pre_ran,obs=test_data$Pass)
+# Output confusion matrix
+table(test_data$Pass,pre_ran,dnn=c("Real","Predict"))
+# Draw ROC curve
+ran_roc <- roc(test_data$Pass,as.numeric(pre_ran))
+
+plot(ran_roc, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),grid.col=c("green", "red"), max.auc.polygon=TRUE,auc.polygon.col="skyblue", print.thres=TRUE,main='ROC curve of random forest model')
+```
+
+
+```{r}
+# Predicting the train sets
+pred_out_1<-predict(object=rf,newdata=train_data)
+table <- table(train_data$Pass,pred_out_1)
+print(table)
+# diag(table): Extract the values on the diagonal of the matrix
+sum(diag(table))/sum(table)  # Prediction accuracy
+```
+
+```{r}
+# The model predicts on the test set
+pred_out_2<-predict(object=rf,newdata=test_data,type="prob")
+table <- table(test_data$Pass,pre_ran)
+print(table)
+# diag(table): Extract the values on the diagonal of the matrix
+sum(diag(table))/sum(table)  # Prediction accuracy
+```
+
+AUC(Area Under Curve:)is used to indicate the accuracy of prediction. The higher the AUC (the larger the area under the curve), the higher the accuracy of prediction.
+
+mtry and ntree will affect the results of the model, but the influence is not very significant. 
+
+
