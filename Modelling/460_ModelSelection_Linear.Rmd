@@ -26,6 +26,15 @@ data$X <- NULL
 data$Pass <- NULL 
 ```
 
+
+```{r}
+set.seed(100)
+# Divide the data set  into training set and test set, the ratio is 7:3
+train_sub = sample(nrow(data),7/10*nrow(data))
+train_data = data[train_sub,]
+test_data = data[-train_sub,]
+```
+
 ```{r}
 # A linear regression model of the relationship between remain group variables and Response was established
 model <- lm(Response~.,data = data)
@@ -43,28 +52,26 @@ print(high_sig)
 
 ```{r,include=FALSE}
 # The new linear regression model is composed of the selected variables
-model_2 <- lm(Response~ Group1_6+Group1_9+Group1_11+Group1_20+Group2_4+Group2_14+
-                Group3_11+Group11_4+Group11_6+Group9_23+Group9_24+
-                Group9_53+Group9_54+Group10_5+Group13_5+Group13_6+
-                Group13_9+Group13_17+Group13_20+Group13_21+Group13_31+
-                Group13_24+Group13_34+Group13_35+Group13_36+Group13_45+
-                Group13_46+Group13_47+Group13_48+Group13_52+Group13_62+
-                Group13_63,data = data)
+model_2 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group3_11+Group11_4+
+                Group11_6+Group9_23+Group8_9+Group13_5+Group13_6+Group13_9+
+                Group13_21+Group13_24+Group13_25+Group13_30+Group13_31+Group13_32
+               +Group13_34+Group13_36+Group13_39+Group13_49+Group13_50,data = train_data)
 
 
 summary(model_2)
 ```
 
 ```{r}
-# Remove some variables by step function
+# Group9_53,Group13_4,Group13_17,Group13_21,Group13_24,Group13_45,
+# Group13_48,Group13_52 are removed by step() function
 step(model_2,test='F')
 ```
 
 ```{r}
-model_3 <- lm(Response~ Group1_6+Group1_9+Group1_11+Group1_20+Group2_4+Group2_14+
-                Group3_11+Group11_4+Group11_6+Group9_54+Group10_5+Group13_5+
-                Group13_6+Group13_9+Group13_20+Group13_34+Group13_35+Group13_36+
-                Group13_45+Group13_47+Group13_62+Group13_63,data = data)
+model_3 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group3_11+Group11_4+
+                Group11_6+Group9_23+Group8_9+Group13_5+Group13_6+Group13_9+
+                Group13_21+Group13_24+Group13_25+Group13_30+
+                Group13_32+Group13_36+Group13_39,data = train_data)
 
 summary(model_3)
 par(mfrow=c(2,2))
@@ -75,42 +82,23 @@ VIF measure the severity of multicollinearity in multiple linear regression mode
 ```{r}
 # model_3 has high collinearity
 vif(model_3)
-# The variables after stepwise regression construct a new data set
-Data_select <- select(data,Group1_6,Group1_9,Group1_11,Group1_20,Group2_4,Group2_14,
-                Group3_11,Group11_4,Group11_6,Group9_54,Group10_5,Group13_5,Group13_6,
-                Group13_9,Group13_20,Group13_34,Group13_35,Group13_36,
-                Group13_45,Group13_47,Group13_62,Group13_63,Response)
-
-```
-Show the correlation between the same group of variables in the remaining variables
-```{r}
-library(corrplot)
-# Correlation coefficient of Group_1 and Group2 variables
-cor_Group1 <- data.matrix(select(Data_select, c('Group1_6','Group1_9','Group1_11','Group1_20','Group2_4','Group2_14')))
-corrplot(cor(cor_Group1),method = "number")
-# Correlation coefficient of Group_11 variables
-cor_Group11 <- data.matrix(select(Data_select, c('Group11_4','Group11_6')))
-corrplot(cor(cor_Group11),method = "number")
-# Correlation coefficient of Group_13 variables
-cor_Group13 <- data.matrix(select(Data_select, c('Group13_5','Group13_6','Group13_9','Group13_20','Group13_34','Group13_35',
-  'Group13_36','Group13_45','Group13_47','Group13_62','Group13_63',)))
-corrplot(cor(cor_Group13),tl.cex = 0.8)
 ```
 
 Some variables in model_3 is not statistically significant enough. We will continue to process them with drop1()
 ```{r}
 drop1(model_3,test = 'F')
 # Remove Group13_45
-model_4 <- lm(Response~ Group1_6+Group1_9+Group1_11+Group1_20+Group2_4+Group2_14+
-                Group3_11+Group11_4+Group11_6+Group9_54+Group10_5+Group13_5+
-                Group13_6+Group13_9+Group13_20+Group13_34+Group13_35+Group13_36+
-                Group13_47+Group13_62+Group13_63,data = data)
+model_4 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group3_11+Group11_4+
+                Group11_6+Group9_23+Group8_9+Group13_5+Group13_6+Group13_9+
+                Group13_21+Group13_24+Group13_30+
+                Group13_32+Group13_36+Group13_39,data = train_data)
 ```
 
 ```{r}
 vif(model_4)
+summary(model_4)
 ```
-There are high collinearity variables in model_4
+
 So I try to delete some collinear variables manually. The criterion to judge whether the model has collinearity is whether the value of VIF is greater than 10
 ```{r}
 # We found that when we tried to remove at least one of these variables,
@@ -148,14 +136,17 @@ Final linear model (P value and VIF value were in accordance with the standard)
 model_7 <- lm(Response~ Group1_6+Group1_11+Group1_20+Group2_4+Group2_14+
                 Group3_11+Group9_54+Group10_5+Group13_5+
                 Group13_6+Group13_9+Group13_20+Group13_35+Group13_36+
-                Group13_47+Group13_63,data = data)
+                Group13_47+Group13_63,data = train_data)
 # the R-squared value of the model decreased by 0.006. 
 summary(model_7)
 vif(model_7)
 plot(model_7)
 ```
 
-
+```{r}
+a <- sum(residuals(model_7)^2)/model_7$df.residual
+print(a)
+```
 
 Linearity:
 If the dependent variable is linearly correlated with the independent variable, there is no systematic correlation between the residual value and the predicted (fitted) value.
@@ -209,7 +200,7 @@ print(Ratio_model7)
 ```
 
 ```{r}
-# Using model
+# Using model with all group variables
 pred_data <- subset(data,select = -c(Response))
 pred <- predict(model,pred_data)
 plot(pred)
