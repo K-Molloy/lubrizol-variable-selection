@@ -88,6 +88,7 @@ Mean decrease Gini: the decrease of Gini coefficient after variable replacement.
 
 
 ```{r}
+# Output the importance of variables in the model to the data frame
 # importance()
 imp <- data.frame(importance(rf, scale = TRUE), check.names = FALSE)
 ```
